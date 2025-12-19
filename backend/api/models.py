@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # class Business(models.Model):
 #     name = models.CharField(max_length=100)
@@ -16,7 +17,14 @@ class Company(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     category = models.CharField(max_length=100)
-    owner_id = models.IntegerField()
+    # Link to the Django auth user that can log in as this company
+    owner = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='company',
+        null=True,
+        blank=True,
+    )
 
     # Contact & location
     email = models.EmailField(blank=True, null=True)
