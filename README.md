@@ -23,5 +23,13 @@ Lab1_08-12-2025
 - Create GitHub repository and initial folder structure.  
 - Done with basic setup of project for backend and frontend both.
 
+Lab2_15-12-2025
+**Summary**
+- Connected the project with MongoDb Atlas.
+- Created Company and User model in backend.
+- Created landing page, signup, login, and homepage in frontend. 
+
+
 
 ---
+
