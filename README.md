@@ -1,4 +1,4 @@
-2526_sdp8_Business_Trust_Analysis
+#2526_sdp8_Business_Trust_Analysis
 
 
 📚 Project Overview
@@ -56,5 +56,6 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
