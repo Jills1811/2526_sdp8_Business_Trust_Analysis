@@ -3,7 +3,7 @@
 
 **📚 Project Overview**
 
-This project aims to analyze the reputation of businesses using customer reviews, ratings, and sentiment analysis.
+-->This project aims to analyze the reputation of businesses using customer reviews, ratings, and sentiment analysis.
 It helps users find the best businesses based on their interests.
 The system also provides personalized business recommendations and an AI chatbot for each business.
 
@@ -75,6 +75,7 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
 
