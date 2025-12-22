@@ -9,13 +9,13 @@ The system also provides personalized business recommendations and an AI chatbot
 
 **steps to run project**
 
-**for backend** 
+**-->for backend** 
 
 cd backend 
 
 python manage.py runserver 
 
-**for frontend**
+**-->for frontend**
 
 cd frontend 
 
@@ -75,6 +75,7 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
 
