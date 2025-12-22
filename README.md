@@ -11,9 +11,13 @@ The system also provides personalized business recommendations and an AI chatbot
 **Technologies Used**
 
 Frontend: React
+
 Backend: Django REST Framework
+
 Database: MongoDB
+
 Machine Learning: Python, NLP, Sentiment Analysis
+
 Deployment: TBD
 
 **Lab1_08-12-2025**
@@ -58,6 +62,7 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
 
