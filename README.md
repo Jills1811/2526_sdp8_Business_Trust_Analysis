@@ -1,4 +1,6 @@
 2526_sdp8_Business_Trust_Analysis
+
+
 📚 Project Overview
 
 This project aims to analyze the reputation of businesses using customer reviews, ratings, and sentiment analysis.
@@ -57,3 +59,4 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
