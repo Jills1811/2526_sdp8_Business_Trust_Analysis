@@ -216,8 +216,8 @@ export function CompanyLoginPage() {
         message: "Login successful. Token saved in localStorage.",
       });
       console.log("Company login response:", data);
-      // Redirect to company home after a brief tick so UI can update.
-      setTimeout(() => navigate("/company/home"), 150);
+      // Redirect to business dashboard after a brief tick so UI can update.
+      setTimeout(() => navigate("/dashboard"), 150);
     } catch (err) {
       setLoginStatus({
         type: "error",

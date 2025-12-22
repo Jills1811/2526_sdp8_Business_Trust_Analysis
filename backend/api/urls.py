@@ -6,19 +6,27 @@ from .views import (
     CompanyLoginView,
     CustomerSignupView,
     CustomerLoginView,
+    CompanyRatingView,
 )
 
 router = DefaultRouter()
-router.register(r'company', CompanyViewSet)
+router.register(r"company", CompanyViewSet)
 
 urlpatterns = [
     # COMPANY AUTH ROUTES
     path("company/signup/", CompanySignupView.as_view(), name="company-signup"),
     path("company/login/", CompanyLoginView.as_view(), name="company-login"),
-    
+
     # CUSTOMER AUTH ROUTES
     path("customer/signup/", CustomerSignupView.as_view(), name="customer-signup"),
     path("customer/login/", CustomerLoginView.as_view(), name="customer-login"),
+
+    # COMPANY RATING ROUTE
+    path(
+        "company/<int:company_id>/rate/",
+        CompanyRatingView.as_view(),
+        name="company-rate",
+    ),
 
     # ROUTER LAST
     path("", include(router.urls)),

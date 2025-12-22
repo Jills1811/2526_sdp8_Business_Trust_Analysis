@@ -11,3 +11,4 @@ mongo_db = client.business_trust
 companies_collection = mongo_db.companies
 customers_collection = mongo_db.customers
 events_collection = mongo_db.events
+ratings_collection = mongo_db.ratings

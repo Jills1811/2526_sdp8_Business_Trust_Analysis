@@ -1,14 +1,16 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import "./App.css";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from "react-router-dom";
 import { CompanySignupPage, CompanyLoginPage, CompanyHomePage } from "./CompanyAuth";
 import { CustomerSignupPage, CustomerLoginPage, CustomerHomePage } from "./CustomerAuth";
+import BusinessDashboard from "./BusinessDashboard";
+import CompanyPublicDetail from "./CompanyPublicDetail";
 
 function HomePage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "calc(100vh - 64px)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -22,7 +24,15 @@ function HomePage() {
       <p style={{ color: "#4b5563", margin: 0 }}>
         Continue as guest or access company features.
       </p>
-      <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", flexWrap: "wrap", justifyContent: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "0.75rem",
+          marginTop: "0.5rem",
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}
+      >
         <Link to="/company/signup">
           <button className="btn btn-primary">Company Signup</button>
         </Link>
@@ -30,28 +40,99 @@ function HomePage() {
           <button className="btn btn-outline">Company Login</button>
         </Link>
         <Link to="/customer/signup">
-          <button className="btn btn-primary" style={{ background: "#7c3aed" }}>Customer Signup</button>
+          <button className="btn btn-primary" style={{ background: "#7c3aed" }}>
+            Customer Signup
+          </button>
         </Link>
         <Link to="/customer/login">
-          <button className="btn btn-outline" style={{ borderColor: "#f59e0b", color: "#f59e0b" }}>Customer Login</button>
+          <button
+            className="btn btn-outline"
+            style={{ borderColor: "#f59e0b", color: "#f59e0b" }}
+          >
+            Customer Login
+          </button>
+        </Link>
+        <Link to="/dashboard">
+          {/* <button
+            className="btn btn-outline"
+            style={{ borderColor: "#2563eb", color: "#2563eb" }}
+          >
+            Business Dashboard
+          </button> */}
         </Link>
       </div>
     </div>
   );
 }
 
+function NavBar({ isLoggedIn, onLogout }) {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    onLogout();
+    navigate("/");
+  };
+
+  return (
+    <nav className="navbar">
+      <div className="navbar__brand">
+        <Link to="/">Business Trust</Link>
+      </div>
+      <div className="navbar__links">
+        <Link to="/dashboard">Dashboard</Link>
+        {/* <Link to="/company/login">Company</Link>
+        <Link to="/customer/login">Customer</Link> */}
+        {isLoggedIn && (
+          <button className="btn btn-outline" onClick={handleLogout}>
+            Log out
+          </button>
+        )}
+      </div>
+    </nav>
+  );
+}
+
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const hasCompany = !!localStorage.getItem("companyToken");
+      const hasCustomer = !!localStorage.getItem("customerToken");
+      setIsLoggedIn(hasCompany || hasCustomer);
+    };
+
+    checkAuth();
+    window.addEventListener("storage", checkAuth);
+    return () => window.removeEventListener("storage", checkAuth);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("companyToken");
+    localStorage.removeItem("customerToken");
+    localStorage.removeItem("companyData");
+    localStorage.removeItem("customerData");
+    setIsLoggedIn(false);
+  };
+
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/company/signup" element={<CompanySignupPage />} />
-        <Route path="/company/login" element={<CompanyLoginPage />} />
-        <Route path="/company/home" element={<CompanyHomePage />} />
-        <Route path="/customer/signup" element={<CustomerSignupPage />} />
-        <Route path="/customer/login" element={<CustomerLoginPage />} />
-        <Route path="/customer/home" element={<CustomerHomePage />} />
-      </Routes>
+      <div className="app-shell">
+        <NavBar isLoggedIn={isLoggedIn} onLogout={handleLogout} />
+        <main className="app-main">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/company/signup" element={<CompanySignupPage />} />
+            <Route path="/company/login" element={<CompanyLoginPage />} />
+            <Route path="/company/home" element={<CompanyHomePage />} />
+            <Route path="/customer/signup" element={<CustomerSignupPage />} />
+            <Route path="/customer/login" element={<CustomerLoginPage />} />
+            <Route path="/customer/home" element={<CustomerHomePage />} />
+            <Route path="/dashboard" element={<BusinessDashboard />} />
+            <Route path="/companies/:companyId" element={<CompanyPublicDetail />} />
+          </Routes>
+        </main>
+      </div>
     </Router>
   );
 }

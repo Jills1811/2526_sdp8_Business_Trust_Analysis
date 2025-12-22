@@ -34,6 +34,7 @@ class Company(models.Model):
     country = models.CharField(max_length=100, blank=True, null=True)
 
     # Reputation & recommendation metrics
+    rating = models.FloatField(default=0.0)  # duplicate of average_rating for convenience
     average_rating = models.FloatField(default=0.0)
     total_reviews = models.PositiveIntegerField(default=0)
     reputation_score = models.FloatField(default=0.0)  # 0–100
@@ -50,3 +51,33 @@ class Company(models.Model):
     def __str__(self):
         return self.name
 
+
+class CompanyRating(models.Model):
+    """
+    Rating a customer gives to a company.
+
+    We store individual ratings so that:
+    - each customer can rate a company once (but can update it)
+    - the company's aggregate rating can be recomputed reliably
+    """
+
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name="ratings",
+    )
+    # Customer is represented by the Django auth user used for customer login
+    customer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="company_ratings",
+    )
+    rating = models.PositiveSmallIntegerField()  # typically 1–5
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("company", "customer")
+
+    def __str__(self):
+        return f"{self.customer_id} → {self.company_id}: {self.rating}"

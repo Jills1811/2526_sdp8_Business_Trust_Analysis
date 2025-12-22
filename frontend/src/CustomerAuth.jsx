@@ -427,6 +427,15 @@ export function CustomerHomePage() {
                     borderRadius: "0.5rem",
                     padding: "1rem",
                     background: "#f8fafc",
+                    cursor: "pointer",
+                    transition: "transform 0.08s ease, box-shadow 0.08s ease, border-color 0.08s ease",
+                  }}
+                  onClick={() => navigate(`/companies/${company.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/companies/${company.id}`);
+                    }
                   }}
                 >
                   <h4 style={{ margin: "0 0 0.5rem", color: "#0b1224" }}>
