@@ -34,6 +34,7 @@ Machine Learning: Python, NLP, Sentiment Analysis
 Deployment: TBD
 
 **-->Lab1_08-12-2025**
+
 **Summary**
 
 Understood and finalized the project definition: Reputation and Recommendation System for Businesses.
@@ -75,6 +76,7 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
 
