@@ -1,14 +1,14 @@
-#2526_sdp8_Business_Trust_Analysis
+**#2526_sdp8_Business_Trust_Analysis**
 
 
-📚 Project Overview
+**📚 Project Overview**
 
 This project aims to analyze the reputation of businesses using customer reviews, ratings, and sentiment analysis.
 It helps users find the best businesses based on their interests.
 The system also provides personalized business recommendations and an AI chatbot for each business.
 
 
-Technologies Used
+**Technologies Used**
 
 Frontend: React
 Backend: Django REST Framework
@@ -16,8 +16,8 @@ Database: MongoDB
 Machine Learning: Python, NLP, Sentiment Analysis
 Deployment: TBD
 
-Lab1_08-12-2025
-Summary
+**Lab1_08-12-2025**
+**Summary**
 
 Understood and finalized the project definition: Reputation and Recommendation System for Businesses.
 
@@ -31,8 +31,9 @@ Created the GitHub repository and initial folder structure.
 
 Completed basic project setup for both backend and frontend.
 
-Lab2_15-12-2025
-Summary
+**Lab2_15-12-2025**
+
+**Summary**
 
 Connected the project to MongoDB Atlas.
 
@@ -42,8 +43,9 @@ Developed frontend pages including landing page, signup, login, and homepage.
 
 Integrated frontend and backend for basic data flow.
 
-Lab3_22-12-2025
-Summary
+**Lab3_22-12-2025**
+
+**Summary**
 
 Implemented login and registration functionality for both users and companies.
 
@@ -56,6 +58,7 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
 
