@@ -21,7 +21,7 @@ cd frontend
 
 npm start 
 
-**Technologies Used**
+**-->Technologies Used**
 
 Frontend: React
 
@@ -33,7 +33,7 @@ Machine Learning: Python, NLP, Sentiment Analysis
 
 Deployment: TBD
 
-**Lab1_08-12-2025**
+**-->Lab1_08-12-2025**
 **Summary**
 
 Understood and finalized the project definition: Reputation and Recommendation System for Businesses.
@@ -48,7 +48,7 @@ Created the GitHub repository and initial folder structure.
 
 Completed basic project setup for both backend and frontend.
 
-**Lab2_15-12-2025**
+**-->Lab2_15-12-2025**
 
 **Summary**
 
@@ -60,7 +60,7 @@ Developed frontend pages including landing page, signup, login, and homepage.
 
 Integrated frontend and backend for basic data flow.
 
-**Lab3_22-12-2025**
+**-->Lab3_22-12-2025**
 
 **Summary**
 
@@ -75,6 +75,7 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
 
