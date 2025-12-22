@@ -31,17 +31,14 @@ Lab2_15-12-2025
 
 Lab3_22-12-2025
 **Summary**
-Implemented login and registration functionality for both users and companies.
 
-Stored user and company registration details securely in MongoDB Atlas
+-Implemented login and registration functionality for both users and companies.
+-Stored user and company registration details securely in MongoDB Atlas
+-Integrated React frontend with Django backend for authentication and data handling.
+-After successful login, displayed all registered companies with their complete details.
+-Enabled users to submit ratings for companies through the frontend.
+-Saved ratings and related data in the database using backend APIs.
 
-Integrated React frontend with Django backend for authentication and data handling.
-
-After successful login, displayed all registered companies with their complete details.
-
-Enabled users to submit ratings for companies through the frontend.
-
-Saved ratings and related data in the database using backend APIs.
 
 
 
