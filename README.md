@@ -7,6 +7,11 @@ This project aims to analyze the reputation of businesses using customer reviews
 It helps users find the best businesses based on their interests.
 The system also provides personalized business recommendations and an AI chatbot for each business.
 
+**steps to run project**
+cd backend 
+python manage.py runserver 
+cd frontend 
+npm start 
 
 **Technologies Used**
 
@@ -62,6 +67,7 @@ Displayed all registered companies with complete details after successful user l
 Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
+
 
 
 
