@@ -489,27 +489,34 @@ class CompanyRatingView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        # Check if already rated
+        # Use update_one with upsert to handle both insert and update
+        # This avoids duplicate key errors and allows users to update their rating
         user_id_str = str(customer["_id"])
+        now = datetime.utcnow()
+        
+        # Check if rating already exists to determine if this is an update or insert
         existing = ratings_collection.find_one({
             "company_id": company_id,
             "user_id": user_id_str,
         })
-        if existing:
-            return Response(
-                {"detail": "You have already rated this company."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         
-        # Create rating
-        now = datetime.utcnow()
-        ratings_collection.insert_one({
-            "company_id": company_id,
-            "user_id": user_id_str,
-            "rating": rating_value,
-            "created_at": now,
-            "updated_at": now,
-        })
+        # Use upsert to insert or update
+        ratings_collection.update_one(
+            {
+                "company_id": company_id,
+                "user_id": user_id_str,
+            },
+            {
+                "$set": {
+                    "rating": rating_value,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {
+                    "created_at": now,
+                }
+            },
+            upsert=True
+        )
         
         # Recalculate aggregates
         pipeline = [
@@ -763,6 +770,9 @@ class RecommendationsView(APIView):
 
 class CompanyMeView(APIView):
     """GET/PATCH /api/company/me/"""
+    # Disable DRF's default authentication for this view
+    authentication_classes = []
+    permission_classes = []
 
     editable_fields = [
         "name",
@@ -848,6 +858,9 @@ class CompanyMeView(APIView):
 
 class CompanyFeedbackView(APIView):
     """GET /api/company/me/feedback/"""
+    # Disable DRF's default authentication for this view
+    authentication_classes = []
+    permission_classes = []
 
     POSITIVE_WORDS = {
         "good", "great", "excellent", "amazing", "fast",

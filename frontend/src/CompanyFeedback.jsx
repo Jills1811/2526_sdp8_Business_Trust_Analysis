@@ -38,15 +38,15 @@ export default function CompanyFeedback() {
               <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                 <div style={{ padding: "0.9rem 1.1rem", borderRadius: "0.75rem", background: "#ecfdf3" }}>
                   <p style={{ margin: 0, color: "#166534" }}>Reputation score</p>
-                  <p style={{ margin: "0.2rem 0 0", fontSize: "1.3rem", fontWeight: 700, color: "#166534" }}>{data.reputation_score.toFixed(1)} / 100</p>
+                  <p style={{ margin: "0.2rem 0 0", fontSize: "1.3rem", fontWeight: 700, color: "#166534" }}>{(data.reputation_score ?? 0).toFixed(1)} / 100</p>
                 </div>
                 <div style={{ padding: "0.9rem 1.1rem", borderRadius: "0.75rem", background: "#f0f4ff" }}>
                   <p style={{ margin: 0, color: "#1d4ed8" }}>Average rating</p>
-                  <p style={{ margin: "0.2rem 0 0", fontSize: "1.3rem", fontWeight: 700, color: "#1d4ed8" }}>{data.average_rating.toFixed(1)} / 5.0</p>
+                  <p style={{ margin: "0.2rem 0 0", fontSize: "1.3rem", fontWeight: 700, color: "#1d4ed8" }}>{(data.company?.average_rating ?? 0).toFixed(1)} / 5.0</p>
                 </div>
                 <div style={{ padding: "0.9rem 1.1rem", borderRadius: "0.75rem", background: "#fff7ed" }}>
                   <p style={{ margin: 0, color: "#9a3412" }}>Total reviews</p>
-                  <p style={{ margin: "0.2rem 0 0", fontSize: "1.3rem", fontWeight: 700, color: "#9a3412" }}>{data.total_reviews}</p>
+                  <p style={{ margin: "0.2rem 0 0", fontSize: "1.3rem", fontWeight: 700, color: "#9a3412" }}>{data.company?.total_reviews ?? 0}</p>
                 </div>
               </div>
 
@@ -67,7 +67,7 @@ export default function CompanyFeedback() {
                   {data.feedback.comments.map((c, idx) => (
                     <div key={idx} style={{ padding: "0.75rem", borderRadius: "0.6rem", background: "#f8fafc", border: "1px solid #e5e7eb" }}>
                       <p style={{ margin: 0 }}>{c.comment}</p>
-                      <p style={{ margin: "0.3rem 0 0", color: c.sentiment >= 0 ? "#15803d" : "#b91c1c", fontSize: "0.85rem" }}>Sentiment: {c.sentiment.toFixed(2)}</p>
+                      <p style={{ margin: "0.3rem 0 0", color: (c.sentiment ?? 0) >= 0 ? "#15803d" : "#b91c1c", fontSize: "0.85rem" }}>Sentiment: {(c.sentiment ?? 0).toFixed(2)}</p>
                     </div>
                   ))}
                 </div>
