@@ -27,18 +27,33 @@ from .db_mongo import (
 
 def _get_auth_user(request, user_type=None):
     """Helper to get authenticated user from token."""
+    # Django converts Authorization header to HTTP_AUTHORIZATION
     auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-    parts = auth_header.split()
-    if len(parts) != 2 or parts[0].lower() != "token":
+    
+    if not auth_header:
         return None
     
-    token_info = verify_token(parts[1])
+    # Parse "Token <token_value>" format
+    parts = auth_header.split()
+    if len(parts) != 2:
+        return None
+    
+    # Check for "Token" prefix (case-insensitive)
+    if parts[0].lower() != "token":
+        return None
+    
+    token_value = parts[1]
+    
+    # Verify token
+    token_info = verify_token(token_value)
     if not token_info:
         return None
     
+    # Check user type if specified
     if user_type and token_info.get("user_type") != user_type:
         return None
     
+    # Get user from MongoDB
     user = get_user_by_id(token_info["user_id"])
     return user
 
@@ -399,10 +414,12 @@ class CompanyRatingView(APIView):
     POST /api/company/<company_id>/rate/
     GET  /api/company/<company_id>/rate/
     """
+    # Disable DRF's default authentication for this view
+    authentication_classes = []
+    permission_classes = []
 
     def _get_authenticated_customer(self, request):
-        user = _get_auth_user(request, user_type="customer")
-        return user
+        return _get_auth_user(request, user_type="customer")
 
     def get(self, request, company_id, *args, **kwargs):
         company = companies_collection.find_one({"company_id": company_id})
@@ -416,9 +433,15 @@ class CompanyRatingView(APIView):
         my_rating_value = None
         
         if customer:
+            # Use string representation of user_id for consistency
+            user_id_str = str(customer["_id"])
+            # Try both ObjectId and string formats for backward compatibility
             doc = ratings_collection.find_one({
                 "company_id": company_id,
-                "user_id": customer["_id"],
+                "$or": [
+                    {"user_id": user_id_str},
+                    {"user_id": customer["_id"]},
+                ]
             })
             if doc and "rating" in doc:
                 try:
@@ -467,9 +490,10 @@ class CompanyRatingView(APIView):
             )
         
         # Check if already rated
+        user_id_str = str(customer["_id"])
         existing = ratings_collection.find_one({
             "company_id": company_id,
-            "user_id": customer["_id"],
+            "user_id": user_id_str,
         })
         if existing:
             return Response(
@@ -481,7 +505,7 @@ class CompanyRatingView(APIView):
         now = datetime.utcnow()
         ratings_collection.insert_one({
             "company_id": company_id,
-            "user_id": customer["_id"],
+            "user_id": user_id_str,
             "rating": rating_value,
             "created_at": now,
             "updated_at": now,
@@ -535,6 +559,9 @@ class CompanyCommentView(APIView):
     GET  /api/company/<company_id>/comments/
     POST /api/company/<company_id>/comments/
     """
+    # Disable DRF's default authentication for this view
+    authentication_classes = []
+    permission_classes = []
 
     def _get_authenticated_customer(self, request):
         return _get_auth_user(request, user_type="customer")

@@ -56,12 +56,16 @@ def verify_token(token: str) -> dict:
     Verify a token and return user info if valid.
     Returns None if invalid.
     """
+    if not token:
+        return None
+    
     doc = tokens_collection.find_one({"token": token})
     if not doc:
         return None
     
     # Check expiry
-    if doc.get("expires_at") < datetime.utcnow():
+    expires_at = doc.get("expires_at")
+    if expires_at and expires_at < datetime.utcnow():
         tokens_collection.delete_one({"_id": doc["_id"]})
         return None
     
@@ -85,7 +89,8 @@ def get_user_by_id(user_id: str):
         except Exception:
             # If not ObjectId, try as string
             return users_collection.find_one({"_id": user_id})
-    except Exception:
+    except Exception as e:
+        print(f"Error getting user by ID {user_id}: {e}")
         return None
 
 
