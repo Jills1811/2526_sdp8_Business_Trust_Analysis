@@ -5,6 +5,7 @@ const BASE_URL = "http://localhost:8000";
 
 function saveCustomerToken(token) {
   localStorage.setItem("customerToken", token);
+  try { window.dispatchEvent(new Event("auth-changed")); } catch {}
 }
 
 export function getCustomerToken() {

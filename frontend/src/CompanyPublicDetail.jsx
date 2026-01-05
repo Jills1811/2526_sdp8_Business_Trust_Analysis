@@ -28,6 +28,10 @@ export default function CompanyPublicDetail() {
   const [ratingInput, setRatingInput] = useState("5");
   const [ratingStatus, setRatingStatus] = useState(null);
   const [submittingRating, setSubmittingRating] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [commentStatus, setCommentStatus] = useState(null);
+  const [postingComment, setPostingComment] = useState(false);
 
   useEffect(() => {
     const fetchCompany = async () => {
@@ -47,6 +51,21 @@ export default function CompanyPublicDetail() {
       }
     };
     fetchCompany();
+  }, [companyId]);
+
+  useEffect(() => {
+    // Fetch comments for this company
+    const fetchComments = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/company/${companyId}/comments/`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setComments(Array.isArray(data.comments) ? data.comments : []);
+      } catch {
+        // ignore for now
+      }
+    };
+    fetchComments();
   }, [companyId]);
 
   useEffect(() => {
@@ -153,6 +172,46 @@ export default function CompanyPublicDetail() {
       });
     } finally {
       setSubmittingRating(false);
+    }
+  };
+
+  const handleSubmitComment = async (e) => {
+    e.preventDefault();
+    setCommentStatus(null);
+    const token = getCustomerToken();
+    if (!token) {
+      setCommentStatus({ type: "error", message: "Please log in as a customer to comment." });
+      return;
+    }
+    const text = newComment.trim();
+    if (!text) {
+      setCommentStatus({ type: "error", message: "Comment cannot be empty." });
+      return;
+    }
+    setPostingComment(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/company/${companyId}/comments/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ comment: text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to add comment.");
+      }
+      // Refresh comments
+      const resList = await fetch(`${BASE_URL}/api/company/${companyId}/comments/`);
+      const listData = await resList.json();
+      setComments(Array.isArray(listData.comments) ? listData.comments : []);
+      setNewComment("");
+      setCommentStatus({ type: "success", message: "Comment added." });
+    } catch (err) {
+      setCommentStatus({ type: "error", message: err.message });
+    } finally {
+      setPostingComment(false);
     }
   };
 
@@ -368,6 +427,56 @@ export default function CompanyPublicDetail() {
                     <strong>Address:</strong> {company.address}
                   </p>
                 )}
+              </div>
+
+              <div style={{ marginTop: "1.5rem" }}>
+                <h3 style={{ marginBottom: "0.5rem" }}>Comments</h3>
+                <form onSubmit={handleSubmitComment} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Share your experience with this company"
+                    rows={3}
+                    style={{ padding: "0.6rem", border: "1px solid #d1d5db", borderRadius: "0.5rem" }}
+                  />
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={postingComment}
+                      style={{
+                        padding: "0.45rem 0.9rem",
+                        borderRadius: "0.5rem",
+                        border: "none",
+                        background: postingComment ? "#9ca3af" : "#2563eb",
+                        color: "white",
+                        fontSize: "0.9rem",
+                        fontWeight: 600,
+                        cursor: postingComment ? "default" : "pointer",
+                      }}
+                    >
+                      {postingComment ? "Posting..." : "Add comment"}
+                    </button>
+                  </div>
+                  {commentStatus && (
+                    <p style={{ color: commentStatus.type === "success" ? "#15803d" : "#b91c1c", margin: 0 }}>
+                      {commentStatus.message}
+                    </p>
+                  )}
+                </form>
+
+                <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  {comments.length === 0 && (
+                    <p style={{ color: "#6b7280", margin: 0 }}>No comments yet.</p>
+                  )}
+                  {comments.map((c, idx) => (
+                    <div key={idx} style={{ padding: "0.75rem", borderRadius: "0.6rem", background: "#f8fafc", border: "1px solid #e5e7eb" }}>
+                      <p style={{ margin: 0 }}>{c.comment}</p>
+                      <p style={{ margin: "0.3rem 0 0", color: "#6b7280", fontSize: "0.85rem" }}>
+                        — {c.customer?.name || "Anonymous"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}

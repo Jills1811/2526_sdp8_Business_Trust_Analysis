@@ -5,6 +5,7 @@ const BASE_URL = "http://localhost:8000"; // change if your backend runs elsewhe
 
 function saveToken(token) {
   localStorage.setItem("companyToken", token);
+  try { window.dispatchEvent(new Event("auth-changed")); } catch {}
 }
 
 export function getCompanyToken() {

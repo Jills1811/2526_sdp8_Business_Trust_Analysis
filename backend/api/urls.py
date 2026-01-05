@@ -7,6 +7,12 @@ from .views import (
     CustomerSignupView,
     CustomerLoginView,
     CompanyRatingView,
+    CompanyCommentView,
+    CompanySearchView,
+    TopBusinessesView,
+    RecommendationsView,
+    CompanyMeView,
+    CompanyFeedbackView,
 )
 
 router = DefaultRouter()
@@ -27,6 +33,22 @@ urlpatterns = [
         CompanyRatingView.as_view(),
         name="company-rate",
     ),
+
+    # COMPANY COMMENTS ROUTE
+    path(
+        "company/<int:company_id>/comments/",
+        CompanyCommentView.as_view(),
+        name="company-comments",
+    ),
+
+    # SEARCH & DISCOVERY
+    path("company/search/", CompanySearchView.as_view(), name="company-search"),
+    path("company/top/", TopBusinessesView.as_view(), name="company-top"),
+    path("company/recommendations/", RecommendationsView.as_view(), name="company-recommendations"),
+
+    # Company owner self endpoints
+    path("company/me/", CompanyMeView.as_view(), name="company-me"),
+    path("company/me/feedback/", CompanyFeedbackView.as_view(), name="company-feedback"),
 
     # ROUTER LAST
     path("", include(router.urls)),

@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getCompanyToken } from "./CompanyAuth";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -23,18 +24,42 @@ const grid = {
 };
 
 export default function BusinessDashboard() {
-  let company = null;
-  try {
-    const stored = localStorage.getItem("companyData");
-    if (stored) {
-      company = JSON.parse(stored);
-    }
-  } catch {
-    company = null;
-  }
+  const [company, setCompany] = useState(null);
 
-  const trustScore = company?.reputation_score ?? 0;
-  const recommendationScore = company?.recommendation_score ?? 0;
+  useEffect(() => {
+    const token = getCompanyToken();
+    const stored = localStorage.getItem("companyData");
+    if (stored && !token) {
+      try { setCompany(JSON.parse(stored)); } catch { setCompany(null); }
+      return;
+    }
+
+    if (!token) {
+      // Not logged in as company; keep null
+      return;
+    }
+
+    // Fetch the latest company profile with enforced 0 scores
+    const run = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/company/me/", {
+          headers: { Authorization: `Token ${token}` },
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setCompany(data);
+          localStorage.setItem("companyData", JSON.stringify(data));
+        }
+      } catch {
+        // ignore
+      }
+    };
+    run();
+  }, []);
+
+  // Reputation and recommendation features are disabled for now
+  const trustScore = 0;
+  const recommendationScore = 0;
   const averageRating = company?.average_rating ?? 0;
   const totalReviews = company?.total_reviews ?? 0;
   const isVerified = company?.is_verified ?? false;

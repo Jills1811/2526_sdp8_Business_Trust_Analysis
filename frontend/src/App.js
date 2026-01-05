@@ -5,6 +5,11 @@ import { CompanySignupPage, CompanyLoginPage, CompanyHomePage } from "./CompanyA
 import { CustomerSignupPage, CustomerLoginPage, CustomerHomePage } from "./CustomerAuth";
 import BusinessDashboard from "./BusinessDashboard";
 import CompanyPublicDetail from "./CompanyPublicDetail";
+import BusinessSearch from "./BusinessSearch";
+import TopBusinesses from "./TopBusinesses";
+import Recommendations from "./Recommendations";
+import CompanyProfile from "./CompanyProfile";
+import CompanyFeedback from "./CompanyFeedback";
 
 function HomePage() {
   return (
@@ -65,7 +70,7 @@ function HomePage() {
   );
 }
 
-function NavBar({ isLoggedIn, onLogout }) {
+function NavBar({ isLoggedIn, isCompanyLoggedIn, isCustomerLoggedIn, onLogout }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -79,9 +84,20 @@ function NavBar({ isLoggedIn, onLogout }) {
         <Link to="/">Business Trust</Link>
       </div>
       <div className="navbar__links">
-        <Link to="/dashboard">Dashboard</Link>
-        {/* <Link to="/company/login">Company</Link>
-        <Link to="/customer/login">Customer</Link> */}
+        {isCustomerLoggedIn && (
+          <>
+            <Link to="/search">Search</Link>
+            <Link to="/top">Top</Link>
+            <Link to="/recommendations">Recommendations</Link>
+          </>
+        )}
+        {isCompanyLoggedIn && (
+          <>
+            <Link to="/dashboard">Dashboard</Link>
+            <Link to="/company/profile">Profile</Link>
+            <Link to="/company/feedback">Feedback</Link>
+          </>
+        )}
         {isLoggedIn && (
           <button className="btn btn-outline" onClick={handleLogout}>
             Log out
@@ -94,17 +110,25 @@ function NavBar({ isLoggedIn, onLogout }) {
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isCompanyLoggedIn, setIsCompanyLoggedIn] = useState(false);
+  const [isCustomerLoggedIn, setIsCustomerLoggedIn] = useState(false);
 
   useEffect(() => {
     const checkAuth = () => {
       const hasCompany = !!localStorage.getItem("companyToken");
       const hasCustomer = !!localStorage.getItem("customerToken");
       setIsLoggedIn(hasCompany || hasCustomer);
+      setIsCompanyLoggedIn(hasCompany);
+      setIsCustomerLoggedIn(hasCustomer);
     };
 
     checkAuth();
     window.addEventListener("storage", checkAuth);
-    return () => window.removeEventListener("storage", checkAuth);
+    window.addEventListener("auth-changed", checkAuth);
+    return () => {
+      window.removeEventListener("storage", checkAuth);
+      window.removeEventListener("auth-changed", checkAuth);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -118,13 +142,18 @@ function App() {
   return (
     <Router>
       <div className="app-shell">
-        <NavBar isLoggedIn={isLoggedIn} onLogout={handleLogout} />
+        <NavBar isLoggedIn={isLoggedIn} isCompanyLoggedIn={isCompanyLoggedIn} isCustomerLoggedIn={isCustomerLoggedIn} onLogout={handleLogout} />
         <main className="app-main">
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/search" element={<BusinessSearch />} />
+            <Route path="/top" element={<TopBusinesses />} />
+            <Route path="/recommendations" element={<Recommendations />} />
             <Route path="/company/signup" element={<CompanySignupPage />} />
             <Route path="/company/login" element={<CompanyLoginPage />} />
             <Route path="/company/home" element={<CompanyHomePage />} />
+            <Route path="/company/profile" element={<CompanyProfile />} />
+            <Route path="/company/feedback" element={<CompanyFeedback />} />
             <Route path="/customer/signup" element={<CustomerSignupPage />} />
             <Route path="/customer/login" element={<CustomerLoginPage />} />
             <Route path="/customer/home" element={<CustomerHomePage />} />
