@@ -13,3 +13,5 @@ customers_collection = mongo_db.customers
 events_collection = mongo_db.events
 ratings_collection = mongo_db.ratings
 comments_collection = mongo_db.comments
+users_collection = mongo_db.users  # Unified users (companies + customers)
+tokens_collection = mongo_db.tokens  # Authentication tokens

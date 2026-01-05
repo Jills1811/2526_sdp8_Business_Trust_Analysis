@@ -81,7 +81,17 @@ function NavBar({ isLoggedIn, isCompanyLoggedIn, isCustomerLoggedIn, onLogout })
   return (
     <nav className="navbar">
       <div className="navbar__brand">
-        <Link to="/">Business Trust</Link>
+        <Link
+          to={
+            isCompanyLoggedIn
+              ? "/dashboard"
+              : isCustomerLoggedIn
+              ? "/customer/home"
+              : "/"
+          }
+        >
+          Business Trust
+        </Link>
       </div>
       <div className="navbar__links">
         {isCustomerLoggedIn && (

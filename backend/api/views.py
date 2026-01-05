@@ -747,3 +747,56 @@ class CompanyFeedbackView(APIView):
                 "feedback": feedback,
             }
         )
+
+
+class MongoCompanyListView(APIView):
+    """
+    GET /api/mongo/companies/
+
+    Returns the list of companies directly from MongoDB, not from Django ORM.
+    Used for customer browsing so that the primary data source is MongoDB.
+    """
+
+    def get(self, request, *args, **kwargs):
+        docs = list(
+            companies_collection.find(
+                {},
+                {
+                    "_id": 0,
+                    "django_company_id": 1,
+                    "name": 1,
+                    "email": 1,
+                    "category": 1,
+                    "description": 1,
+                    "city": 1,
+                    "country": 1,
+                    "rating": 1,
+                    "average_rating": 1,
+                    "total_reviews": 1,
+                    "is_verified": 1,
+                    "is_active": 1,
+                },
+            )
+        )
+
+        # Normalize field names so frontend can treat them like Django objects
+        results = []
+        for doc in docs:
+            results.append(
+                {
+                    "id": doc.get("django_company_id"),
+                    "name": doc.get("name"),
+                    "email": doc.get("email"),
+                    "category": doc.get("category"),
+                    "description": doc.get("description"),
+                    "city": doc.get("city"),
+                    "country": doc.get("country"),
+                    "rating": float(doc.get("rating", 0.0) or 0.0),
+                    "average_rating": float(doc.get("average_rating", 0.0) or 0.0),
+                    "total_reviews": int(doc.get("total_reviews", 0) or 0),
+                    "is_verified": bool(doc.get("is_verified", False)),
+                    "is_active": bool(doc.get("is_active", True)),
+                }
+            )
+
+        return Response({"companies": results}, status=status.HTTP_200_OK)

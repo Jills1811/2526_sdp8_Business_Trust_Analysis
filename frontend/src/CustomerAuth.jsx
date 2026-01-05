@@ -321,12 +321,13 @@ export function CustomerHomePage() {
     const fetchCompanies = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${BASE_URL}/api/company/`);
+        const res = await fetch(`${BASE_URL}/api/mongo/companies/`);
         if (!res.ok) {
           throw new Error("Failed to fetch companies");
         }
         const data = await res.json();
-        setCompanies(data);
+        const list = Array.isArray(data) ? data : data.companies || [];
+        setCompanies(list);
         setError(null);
       } catch (err) {
         setError(err.message);
