@@ -26,7 +26,6 @@ const grid = {
 export default function BusinessDashboard() {
   const [company, setCompany] = useState(null);
   const [feedbackData, setFeedbackData] = useState(null);
-  const [loadingFeedback, setLoadingFeedback] = useState(false);
 
   useEffect(() => {
     const token = getCompanyToken();
@@ -54,7 +53,6 @@ export default function BusinessDashboard() {
         }
 
         // Fetch company feedback (ratings + comments) from backend
-        setLoadingFeedback(true);
         try {
           const fbRes = await fetch(
             "http://localhost:8000/api/company/me/feedback/",
@@ -66,8 +64,8 @@ export default function BusinessDashboard() {
           if (fbRes.ok) {
             setFeedbackData(fbData);
           }
-        } finally {
-          setLoadingFeedback(false);
+        } catch {
+          // ignore feedback fetch errors
         }
       } catch {
         // ignore

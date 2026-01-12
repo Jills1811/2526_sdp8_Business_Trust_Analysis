@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getCustomerToken } from "./CustomerAuth";
+import BusinessChatbot from "./BusinessChatbot";
 
 const BASE_URL = "http://localhost:8000";
 
@@ -292,7 +293,6 @@ export default function CompanyPublicDetail() {
                     const ordered = allDays.filter((d) => selected.includes(d));
                     // Check for single continuous range
                     const firstIdx = allDays.indexOf(ordered[0]);
-                    const lastIdx = allDays.indexOf(ordered[ordered.length - 1]);
                     const isContinuous =
                       ordered.length > 1 &&
                       ordered.every((d, idx) => allDays.indexOf(d) === firstIdx + idx);
@@ -521,6 +521,14 @@ export default function CompanyPublicDetail() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div style={{ marginTop: "1.5rem" }}>
+                <h3 style={{ marginBottom: "0.5rem" }}>Chat with us</h3>
+                <p style={{ margin: "0 0 0.75rem", color: "#6b7280", fontSize: "0.9rem" }}>
+                  Ask questions about our services, timings, location, or contact information.
+                </p>
+                <BusinessChatbot companyId={companyId} businessName={company.name} />
               </div>
             </>
           )}

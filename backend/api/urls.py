@@ -15,6 +15,7 @@ from .views_mongo import (
     MongoCompanyListView,
     CompanyDetailView,
 )
+from .chatbot_view import BusinessChatbotView
 
 urlpatterns = [
     # COMPANY AUTH ROUTES (MongoDB-based)
@@ -53,4 +54,7 @@ urlpatterns = [
     
     # Company detail view (MongoDB-based)
     path("company/<str:company_id>/", CompanyDetailView.as_view(), name="company-detail"),
+    
+    # Chatbot endpoint
+    path("company/<str:company_id>/chatbot/", BusinessChatbotView.as_view(), name="company-chatbot"),
 ]
