@@ -25,6 +25,8 @@ const grid = {
 
 export default function BusinessDashboard() {
   const [company, setCompany] = useState(null);
+  const [feedbackData, setFeedbackData] = useState(null);
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
 
   useEffect(() => {
     const token = getCompanyToken();
@@ -39,7 +41,7 @@ export default function BusinessDashboard() {
       return;
     }
 
-    // Fetch the latest company profile with enforced 0 scores
+    // Fetch the latest company profile and feedback
     const run = async () => {
       try {
         const res = await fetch("http://localhost:8000/api/company/me/", {
@@ -49,6 +51,23 @@ export default function BusinessDashboard() {
         if (res.ok) {
           setCompany(data);
           localStorage.setItem("companyData", JSON.stringify(data));
+        }
+
+        // Fetch company feedback (ratings + comments) from backend
+        setLoadingFeedback(true);
+        try {
+          const fbRes = await fetch(
+            "http://localhost:8000/api/company/me/feedback/",
+            {
+              headers: { Authorization: `Token ${token}` },
+            }
+          );
+          const fbData = await fbRes.json();
+          if (fbRes.ok) {
+            setFeedbackData(fbData);
+          }
+        } finally {
+          setLoadingFeedback(false);
         }
       } catch {
         // ignore
@@ -82,37 +101,105 @@ export default function BusinessDashboard() {
     },
   ];
 
-  const recommendedActions = [
-    {
-      title: "Reply to 3 recent reviews",
-      detail: "Improves trust score and visibility",
-      priority: "High",
-    },
-    {
-      title: "Complete profile details",
-      detail: "Add photos, hours, and FAQ",
-      priority: "Medium",
-    },
-    {
-      title: "Ask happy customers for reviews",
-      detail: "Share your review link with last week’s orders",
-      priority: "Medium",
-    },
-  ];
+  // Real review data from backend feedback endpoint
+  const ratings = feedbackData?.feedback?.ratings ?? [];
+  const comments = feedbackData?.feedback?.comments ?? [];
 
-  const reviewSignals = [
-    { title: "New reviews (30d)", value: totalReviews > 0 ? totalReviews : 0, accent: "#2563eb" },
-    { title: "Avg rating", value: averageRating.toFixed(1), accent: "#10b981" },
-    { title: "Response rate", value: "0%", accent: "#f59e0b" },
-    { title: "Response time", value: "0m", accent: "#ec4899" },
-  ];
+  // Helper for last 30 days
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const reputationFeed = [
-    { label: "Review", detail: "Customer praised support speed.", when: "2h ago" },
-    { label: "Action", detail: "You replied to Jane’s review.", when: "5h ago" },
-    { label: "Insight", detail: "Peak inquiries on Fridays.", when: "1d ago" },
-    { label: "Review", detail: "Mentioned packaging quality.", when: "2d ago" },
-  ];
+  const reviewsLast30Days = ratings.filter((r) => {
+    if (!r.created_at) return false;
+    const d = new Date(r.created_at);
+    return !Number.isNaN(d.getTime()) && d >= thirtyDaysAgo;
+  }).length;
+
+  const reviewSignals =
+    ratings.length === 0
+      ? [
+          {
+            title: "New reviews (30d)",
+            value: 0,
+            accent: "#2563eb",
+          },
+          {
+            title: "Avg rating",
+            value: averageRating.toFixed(1),
+            accent: "#10b981",
+          },
+        ]
+      : [
+          {
+            title: "New reviews (30d)",
+            value: reviewsLast30Days,
+            accent: "#2563eb",
+          },
+          {
+            title: "Avg rating",
+            value: averageRating.toFixed(1),
+            accent: "#10b981",
+          },
+        ];
+
+  // Recommended actions based on real data
+  const recommendedActions = (() => {
+    const actions = [];
+    if (totalReviews === 0) {
+      actions.push({
+        title: "Collect your first reviews",
+        detail:
+          "Share your review link with recent customers to start building trust.",
+        priority: "High",
+      });
+    } else {
+      const negativeComments = comments.filter(
+        (c) => typeof c.sentiment === "number" && c.sentiment < 0
+      );
+      if (negativeComments.length > 0) {
+        actions.push({
+          title: "Reply to recent negative reviews",
+          detail:
+            "Address concerns publicly to show you listen and improve your service.",
+          priority: "High",
+        });
+      }
+      actions.push({
+        title: "Thank happy customers",
+        detail:
+          "Reply to positive reviews to strengthen relationships and loyalty.",
+        priority: "Medium",
+      });
+    }
+    if (actions.length === 0) {
+      actions.push({
+        title: "Monitor new feedback",
+        detail: "Keep an eye on fresh reviews to maintain a strong reputation.",
+        priority: "Medium",
+      });
+    }
+    return actions;
+  })();
+
+  const reputationFeed = comments.slice(0, 10).map((item) => {
+    let label = "Review";
+    if (typeof item.sentiment === "number") {
+      if (item.sentiment > 0) label = "Positive review";
+      else if (item.sentiment < 0) label = "Negative review";
+    }
+    let when = "";
+    if (item.created_at) {
+      const d = new Date(item.created_at);
+      if (!Number.isNaN(d.getTime())) {
+        when = d.toLocaleDateString();
+      }
+    }
+    return {
+      label,
+      detail: item.comment || "No comment text",
+      when: when || "Recently",
+    };
+  });
 
   return (
     <div style={pageStyle}>
@@ -120,7 +207,7 @@ export default function BusinessDashboard() {
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
           <div>
             <p style={{ margin: 0, color: "#6b7280", fontSize: "0.9rem" }}>Dashboard</p>
-            <h1 style={{ margin: "0.1rem 0 0", color: "#111827" }}>Reputation & Recommendations</h1>
+            <h1 style={{ margin: "0.1rem 0 0", color: "#111827" }}>{company?.name}</h1>
           </div>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
             <Link to="/company/home">

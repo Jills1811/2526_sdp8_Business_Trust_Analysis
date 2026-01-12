@@ -10,6 +10,10 @@ import TopBusinesses from "./TopBusinesses";
 import Recommendations from "./Recommendations";
 import CompanyProfile from "./CompanyProfile";
 import CompanyFeedback from "./CompanyFeedback";
+import {
+  CompanyRecommendationPage,
+  CompanyAnalyticsPage,
+} from "./CompanyAnalytics";
 
 function HomePage() {
   return (
@@ -105,7 +109,9 @@ function NavBar({ isLoggedIn, isCompanyLoggedIn, isCustomerLoggedIn, onLogout })
           <>
             <Link to="/dashboard">Dashboard</Link>
             <Link to="/company/profile">Profile</Link>
-            <Link to="/company/feedback">Feedback</Link>
+            <Link to="/company/feedback">Feedback/Review</Link>
+            <Link to="/company/recommendation">Recommendation</Link>
+            <Link to="/company/analytics">Analytics</Link>
           </>
         )}
         {isLoggedIn && (
@@ -164,6 +170,14 @@ function App() {
             <Route path="/company/home" element={<CompanyHomePage />} />
             <Route path="/company/profile" element={<CompanyProfile />} />
             <Route path="/company/feedback" element={<CompanyFeedback />} />
+            <Route
+              path="/company/recommendation"
+              element={<CompanyRecommendationPage />}
+            />
+            <Route
+              path="/company/analytics"
+              element={<CompanyAnalyticsPage />}
+            />
             <Route path="/customer/signup" element={<CustomerSignupPage />} />
             <Route path="/customer/login" element={<CustomerLoginPage />} />
             <Route path="/customer/home" element={<CustomerHomePage />} />

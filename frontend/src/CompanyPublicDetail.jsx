@@ -260,6 +260,50 @@ export default function CompanyPublicDetail() {
                 </p>
               )}
 
+              {Array.isArray(company.services) && company.services.length > 0 && (
+                <div style={{ marginTop: "0.75rem" }}>
+                  <h4 style={{ margin: 0, marginBottom: "0.25rem" }}>Services</h4>
+                  <ul style={{ margin: 0, paddingLeft: "1.25rem", color: "#374151", fontSize: "0.95rem" }}>
+                    {company.services.map((svc, idx) => (
+                      <li key={idx}>{svc}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(company.opening_time || company.closing_time) && (
+                <div style={{ marginTop: "0.75rem", color: "#374151", fontSize: "0.95rem" }}>
+                  <strong>Business hours: </strong>
+                  {company.opening_time || "Not set"}
+                  {" - "}
+                  {company.closing_time || "Not set"}
+                </div>
+              )}
+
+              {Array.isArray(company.working_days) && company.working_days.length > 0 && (
+                <div style={{ marginTop: "0.5rem", color: "#374151", fontSize: "0.95rem" }}>
+                  <strong>Working days: </strong>
+                  {(() => {
+                    const allDays = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+                    const selected = company.working_days.filter((d) => allDays.includes(d));
+                    if (selected.length === 7) {
+                      return "All days";
+                    }
+                    const ordered = allDays.filter((d) => selected.includes(d));
+                    // Check for single continuous range
+                    const firstIdx = allDays.indexOf(ordered[0]);
+                    const lastIdx = allDays.indexOf(ordered[ordered.length - 1]);
+                    const isContinuous =
+                      ordered.length > 1 &&
+                      ordered.every((d, idx) => allDays.indexOf(d) === firstIdx + idx);
+                    if (isContinuous) {
+                      return `${ordered[0]} - ${ordered[ordered.length - 1]}`;
+                    }
+                    return ordered.join(", ");
+                  })()}
+                </div>
+              )}
+
               <div
                 style={{
                   display: "flex",

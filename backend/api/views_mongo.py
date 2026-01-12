@@ -47,7 +47,7 @@ def _get_auth_user(request, user_type=None):
     
     # Verify token
     token_info = verify_token(token_value)
-    if not token_info:
+    if not token_info:  
         return None
     
     # Check user type if specified
@@ -172,6 +172,11 @@ class CompanySignupView(APIView):
             "address": data.get("address", ""),
             "city": data.get("city", ""),
             "country": data.get("country", ""),
+            # Optional business details
+            "services": data.get("services", []),
+            "opening_time": data.get("opening_time", ""),
+            "closing_time": data.get("closing_time", ""),
+            "working_days": data.get("working_days", []),
             "rating": 0.0,
             "average_rating": 0.0,
             "total_reviews": 0,
@@ -222,6 +227,10 @@ class CompanySignupView(APIView):
                     "address": company_doc["address"],
                     "city": company_doc["city"],
                     "country": company_doc["country"],
+                    "services": company_doc.get("services", []),
+                    "opening_time": company_doc.get("opening_time", ""),
+                    "closing_time": company_doc.get("closing_time", ""),
+                    "working_days": company_doc.get("working_days", []),
                     "average_rating": 0.0,
                     "total_reviews": 0,
                     "is_verified": False,
@@ -289,6 +298,10 @@ class CompanyLoginView(APIView):
                     "address": company.get("address"),
                     "city": company.get("city"),
                     "country": company.get("country"),
+                    "services": company.get("services", []),
+                    "opening_time": company.get("opening_time", ""),
+                    "closing_time": company.get("closing_time", ""),
+                    "working_days": company.get("working_days", []),
                     "average_rating": float(company.get("average_rating", 0.0)),
                     "total_reviews": int(company.get("total_reviews", 0)),
                     "is_verified": bool(company.get("is_verified", False)),
@@ -896,6 +909,11 @@ class CompanyMeView(APIView):
         "address",
         "city",
         "country",
+        # New editable business info
+        "services",
+        "opening_time",
+        "closing_time",
+        "working_days",
     ]
 
     def _get_company(self, request):
@@ -937,6 +955,10 @@ class CompanyMeView(APIView):
             "address": company.get("address", ""),
             "city": company.get("city", ""),
             "country": company.get("country", ""),
+            "services": company.get("services", []),
+            "opening_time": company.get("opening_time", ""),
+            "closing_time": company.get("closing_time", ""),
+            "working_days": company.get("working_days", []),
             "average_rating": float(company.get("average_rating", 0.0)),
             "total_reviews": int(company.get("total_reviews", 0)),
             "reputation_score": float(reputation_score or 0.0),
@@ -976,6 +998,10 @@ class CompanyMeView(APIView):
             "address": updated.get("address", ""),
             "city": updated.get("city", ""),
             "country": updated.get("country", ""),
+            "services": updated.get("services", []),
+            "opening_time": updated.get("opening_time", ""),
+            "closing_time": updated.get("closing_time", ""),
+            "working_days": updated.get("working_days", []),
             "average_rating": float(updated.get("average_rating", 0.0)),
             "total_reviews": int(updated.get("total_reviews", 0)),
             "is_verified": bool(updated.get("is_verified", False)),
@@ -1140,6 +1166,10 @@ class CompanyDetailView(APIView):
             "address": company.get("address", ""),
             "city": company.get("city", ""),
             "country": company.get("country", ""),
+            "services": company.get("services", []),
+            "opening_time": company.get("opening_time", ""),
+            "closing_time": company.get("closing_time", ""),
+            "working_days": company.get("working_days", []),
             "rating": float(company.get("rating", 0.0) or 0.0),
             "average_rating": float(company.get("average_rating", 0.0) or 0.0),
             "total_reviews": int(company.get("total_reviews", 0) or 0),
