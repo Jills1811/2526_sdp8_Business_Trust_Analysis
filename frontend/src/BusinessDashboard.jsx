@@ -57,9 +57,9 @@ export default function BusinessDashboard() {
     run();
   }, []);
 
-  // Reputation and recommendation features are disabled for now
-  const trustScore = 0;
-  const recommendationScore = 0;
+  // Get reputation score from company data
+  const trustScore = company?.reputation_score ?? 0;
+  const recommendationScore = company?.recommendation_score ?? 0;
   const averageRating = company?.average_rating ?? 0;
   const totalReviews = company?.total_reviews ?? 0;
   const isVerified = company?.is_verified ?? false;

@@ -4,8 +4,9 @@ All views rewritten to use MongoDB only - no Django models.
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
+import math
 
 from .mongo_auth import (
     create_user,
@@ -56,6 +57,68 @@ def _get_auth_user(request, user_type=None):
     # Get user from MongoDB
     user = get_user_by_id(token_info["user_id"])
     return user
+
+
+def calculate_reputation_score(company_id):
+    """
+    Calculate reputation score using the formula:
+    Reputation Score = (0.5 × Average Rating) + (0.3 × Recent Ratings) + (0.2 × Review Volume Factor)
+    
+    Where:
+    - Average Rating: Overall average rating (0-5 scale, normalized to 0-100)
+    - Recent Ratings: Average rating from last 3 days (0-5 scale, normalized to 0-100)
+    - Review Volume Factor: More reviews = more trust (0-100 scale based on review count)
+    """
+    # Get all ratings for this company
+    all_ratings = list(ratings_collection.find({"company_id": company_id}))
+    
+    if not all_ratings:
+        return 0.0
+    
+    # Calculate average rating (component 1: 50% weight)
+    total_rating = sum(float(r.get("rating", 0)) for r in all_ratings)
+    avg_rating = total_rating / len(all_ratings) if all_ratings else 0.0
+    # Normalize to 0-100 scale (rating is 1-5, so multiply by 20)
+    avg_rating_normalized = avg_rating * 20.0
+    
+    # Calculate recent ratings (last 3 days) (component 2: 30% weight)
+    # Use UTC to match how ratings are stored
+    three_days_ago = datetime.utcnow() - timedelta(days=14)
+    recent_ratings = [
+        r for r in all_ratings 
+        if (r.get("created_at") and r.get("created_at") >= three_days_ago) or
+           (r.get("updated_at") and r.get("updated_at") >= three_days_ago)
+    ]
+    
+    if recent_ratings:
+        recent_avg = sum(float(r.get("rating", 0)) for r in recent_ratings) / len(recent_ratings)
+        recent_avg_normalized = recent_avg * 20.0
+    else:
+        # If no recent ratings, use overall average
+        recent_avg_normalized = avg_rating_normalized
+    
+    # Calculate review volume factor (component 3: 20% weight)
+    # More reviews = more trust, capped at 100
+    # Using logarithmic scale: log10(review_count + 1) * 20, capped at 100
+    review_count = len(all_ratings)
+    if review_count == 0:
+        volume_factor = 0.0
+    else:
+        # Logarithmic scale: log10(count + 1) * 20, but cap at 100
+        # For example: 1 review = ~6, 10 reviews = ~20, 100 reviews = ~40, 1000 reviews = ~60
+        # We'll use a more practical scale: min(100, review_count * 2) for simplicity
+        # Or use: min(100, math.log10(review_count + 1) * 33.33)
+        volume_factor = min(100.0, math.log10(review_count + 1) * 33.33)
+    
+    # Calculate final reputation score
+    reputation_score = (
+        0.5 * avg_rating_normalized +
+        0.3 * recent_avg_normalized +
+        0.2 * volume_factor
+    )
+    
+    # Ensure score is between 0 and 100
+    return max(0.0, min(100.0, reputation_score))
 
 
 class CompanySignupView(APIView):
@@ -449,12 +512,23 @@ class CompanyRatingView(APIView):
                 except (TypeError, ValueError):
                     my_rating_value = None
         
+        # Calculate reputation score if missing or 0
+        reputation_score = company.get("reputation_score")
+        if reputation_score is None or reputation_score == 0.0:
+            reputation_score = calculate_reputation_score(company_id)
+            if reputation_score > 0:
+                companies_collection.update_one(
+                    {"company_id": company_id},
+                    {"$set": {"reputation_score": reputation_score}}
+                )
+        
         return Response({
             "company": {
                 "id": company.get("company_id"),
                 "name": company.get("name"),
                 "average_rating": float(company.get("average_rating", 0.0)),
                 "total_reviews": int(company.get("total_reviews", 0)),
+                "reputation_score": float(reputation_score or 0.0),
             },
             "my_rating": my_rating_value,
         })
@@ -537,6 +611,9 @@ class CompanyRatingView(APIView):
             avg_rating = 0.0
             count = 0
         
+        # Calculate reputation score
+        reputation_score = calculate_reputation_score(company_id)
+        
         # Update company
         companies_collection.update_one(
             {"company_id": company_id},
@@ -545,6 +622,7 @@ class CompanyRatingView(APIView):
                     "average_rating": avg_rating,
                     "rating": avg_rating,
                     "total_reviews": count,
+                    "reputation_score": reputation_score,
                     "updated_at": now,
                 }
             },
@@ -556,6 +634,7 @@ class CompanyRatingView(APIView):
                 "name": company.get("name"),
                 "average_rating": avg_rating,
                 "total_reviews": count,
+                "reputation_score": reputation_score,
             },
             "my_rating": rating_value,
         })
@@ -674,8 +753,19 @@ class CompanySearchView(APIView):
         
         results = []
         for doc in docs:
+            company_id = doc.get("company_id") or str(doc.get("_id"))
+            reputation_score = doc.get("reputation_score")
+            # Calculate if missing or 0
+            if reputation_score is None or reputation_score == 0.0:
+                reputation_score = calculate_reputation_score(company_id)
+                if reputation_score > 0:
+                    companies_collection.update_one(
+                        {"company_id": company_id},
+                        {"$set": {"reputation_score": reputation_score}}
+                    )
+            
             results.append({
-                "id": doc.get("company_id") or str(doc.get("_id")),
+                "id": company_id,
                 "name": doc.get("name", ""),
                 "email": doc.get("email", ""),
                 "category": doc.get("category", ""),
@@ -684,6 +774,7 @@ class CompanySearchView(APIView):
                 "country": doc.get("country", ""),
                 "average_rating": float(doc.get("average_rating", 0.0)),
                 "total_reviews": int(doc.get("total_reviews", 0)),
+                "reputation_score": float(reputation_score or 0.0),
             })
         
         return Response({"results": results})
@@ -711,16 +802,27 @@ class TopBusinessesView(APIView):
                 .limit(limit)
             )
             
-            data[cat] = [
-                {
-                    "id": doc.get("company_id") or str(doc.get("_id")),
+            data[cat] = []
+            for doc in top:
+                company_id = doc.get("company_id") or str(doc.get("_id"))
+                reputation_score = doc.get("reputation_score")
+                # Calculate if missing or 0
+                if reputation_score is None or reputation_score == 0.0:
+                    reputation_score = calculate_reputation_score(company_id)
+                    if reputation_score > 0:
+                        companies_collection.update_one(
+                            {"company_id": company_id},
+                            {"$set": {"reputation_score": reputation_score}}
+                        )
+                
+                data[cat].append({
+                    "id": company_id,
                     "name": doc.get("name", ""),
                     "category": doc.get("category", ""),
                     "average_rating": float(doc.get("average_rating", 0.0)),
                     "total_reviews": int(doc.get("total_reviews", 0)),
-                }
-                for doc in top
-            ]
+                    "reputation_score": float(reputation_score or 0.0),
+                })
         
         return Response({"top_by_category": data})
 
@@ -756,13 +858,24 @@ class RecommendationsView(APIView):
         
         recommendations = []
         for doc in docs:
+            company_id = doc.get("company_id") or str(doc.get("_id"))
+            reputation_score = doc.get("reputation_score")
+            # Calculate if missing or 0
+            if reputation_score is None or reputation_score == 0.0:
+                reputation_score = calculate_reputation_score(company_id)
+                if reputation_score > 0:
+                    companies_collection.update_one(
+                        {"company_id": company_id},
+                        {"$set": {"reputation_score": reputation_score}}
+                    )
+            
             recommendations.append({
-                "id": doc.get("company_id") or str(doc.get("_id")),
+                "id": company_id,
                 "name": doc.get("name", ""),
                 "category": doc.get("category", ""),
                 "average_rating": float(doc.get("average_rating", 0.0)),
                 "total_reviews": int(doc.get("total_reviews", 0)),
-                "reputation_score": float(doc.get("reputation_score", 0.0)),
+                "reputation_score": float(reputation_score or 0.0),
             })
         
         return Response({"recommendations": recommendations})
@@ -801,8 +914,21 @@ class CompanyMeView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         
+        company_id = company.get("company_id") or str(company.get("_id"))
+        
+        # Calculate reputation score if missing or 0 (for existing companies)
+        reputation_score = company.get("reputation_score")
+        if reputation_score is None or reputation_score == 0.0:
+            reputation_score = calculate_reputation_score(company_id)
+            # Update the company with the calculated score
+            if reputation_score > 0:
+                companies_collection.update_one(
+                    {"company_id": company_id},
+                    {"$set": {"reputation_score": reputation_score}}
+                )
+        
         return Response({
-            "id": company.get("company_id") or str(company.get("_id")),
+            "id": company_id,
             "name": company.get("name", ""),
             "email": company.get("email", ""),
             "category": company.get("category", ""),
@@ -813,6 +939,7 @@ class CompanyMeView(APIView):
             "country": company.get("country", ""),
             "average_rating": float(company.get("average_rating", 0.0)),
             "total_reviews": int(company.get("total_reviews", 0)),
+            "reputation_score": float(reputation_score or 0.0),
             "is_verified": bool(company.get("is_verified", False)),
             "is_active": bool(company.get("is_active", True)),
         })
@@ -931,6 +1058,9 @@ class CompanyFeedbackView(APIView):
             ],
         }
         
+        # Calculate reputation score
+        reputation_score = calculate_reputation_score(company_id)
+        
         # Update company stats
         companies_collection.update_one(
             {"company_id": company_id},
@@ -938,6 +1068,7 @@ class CompanyFeedbackView(APIView):
                 "$set": {
                     "average_rating": avg_rating,
                     "total_reviews": total_reviews,
+                    "reputation_score": reputation_score,
                     "updated_at": datetime.utcnow(),
                 }
             },
@@ -951,7 +1082,7 @@ class CompanyFeedbackView(APIView):
                 "total_reviews": total_reviews,
             },
             "average_sentiment": 0.0,
-            "reputation_score": 0.0,
+            "reputation_score": reputation_score,
             "feedback": feedback,
         })
 
@@ -987,6 +1118,18 @@ class CompanyDetailView(APIView):
         
         # Always use MongoDB _id as the primary identifier (guaranteed unique)
         final_company_id = company.get("company_id") or str(company.get("_id"))
+        
+        # Calculate reputation score if missing or 0 (for existing companies)
+        reputation_score = company.get("reputation_score")
+        if reputation_score is None or reputation_score == 0.0:
+            reputation_score = calculate_reputation_score(final_company_id)
+            # Update the company with the calculated score
+            if reputation_score > 0:
+                companies_collection.update_one(
+                    {"company_id": final_company_id},
+                    {"$set": {"reputation_score": reputation_score}}
+                )
+        
         return Response({
             "id": final_company_id,
             "name": company.get("name", ""),
@@ -1000,7 +1143,7 @@ class CompanyDetailView(APIView):
             "rating": float(company.get("rating", 0.0) or 0.0),
             "average_rating": float(company.get("average_rating", 0.0) or 0.0),
             "total_reviews": int(company.get("total_reviews", 0) or 0),
-            "reputation_score": float(company.get("reputation_score", 0.0) or 0.0),
+            "reputation_score": float(reputation_score or 0.0),
             "recommendation_score": float(company.get("recommendation_score", 0.0) or 0.0),
             "is_verified": bool(company.get("is_verified", False)),
             "is_active": bool(company.get("is_active", True)),

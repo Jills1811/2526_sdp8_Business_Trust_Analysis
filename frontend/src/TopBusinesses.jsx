@@ -58,7 +58,10 @@ export default function TopBusinesses() {
                     {c.city && c.country && (
                       <p style={{ margin: 0, color: "#4b5563" }}>📍 {c.city}, {c.country}</p>
                     )}
-                    <p style={{ margin: "0.35rem 0 0", color: "#1d4ed8", fontWeight: 600 }}>{(c.average_rating ?? 0).toFixed(1)} / 5.0</p>
+                    <div style={{ margin: "0.35rem 0 0", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                      <p style={{ margin: 0, color: "#1d4ed8", fontWeight: 600 }}>{(c.average_rating ?? 0).toFixed(1)} / 5.0</p>
+                      <p style={{ margin: 0, color: "#15803d", fontSize: "0.85rem", fontWeight: 500 }}>Reputation: {(c.reputation_score ?? 0).toFixed(1)} / 100</p>
+                    </div>
                     <Link to={`/companies/${c.id}`}><button className="btn btn-outline" style={{ marginTop: "0.5rem" }}>View</button></Link>
                   </div>
                 ))}
