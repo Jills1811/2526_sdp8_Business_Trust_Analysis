@@ -98,9 +98,11 @@ Added two fields for company that is business hours and services
 **-->Lab6_19-01-2026**
 
 **Summary**
+
 Implemented Login and Sign-Up functionality using Google Authentication.
 
 Improved chatbot functionality to handle random user queries and general interactions more effectively.
+
 
 
 
