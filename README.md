@@ -99,7 +99,9 @@ Added two fields for company that is business hours and services
 
 **Summary**
 Implemented Login and Sign-Up functionality using Google Authentication.
+
 Improved chatbot functionality to handle random user queries and general interactions more effectively.
+
 
 
 
