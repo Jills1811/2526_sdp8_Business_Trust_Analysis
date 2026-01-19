@@ -77,13 +77,31 @@ Enabled users to submit ratings for companies through the frontend.
 
 Stored ratings and related data in the database using backend APIs.
 
+**-->Lab4_05-01-2026**
 
+**Summary**
 
+Added company data and implemented commenting on business.
 
+Fixed the ui of both company and customer.
 
+Implemented profile viewing and updating for company.
 
+**-->Lab5_12-01-2026**
 
+**Summary**
 
+Implemented Chatbot functionality by integrating ollama ai.
+
+Added two fields for company that is business hours and services
+
+**-->Lab6_19-01-2026**
+
+**Summary**
+
+Implemented Login and Sign-Up functionality using Google Authentication.
+
+Improved chatbot functionality to handle random user queries and general interactions more effectively.
 
 
 
