@@ -38,9 +38,44 @@ class BusinessChatbotView(APIView):
         working_days = company.get("working_days", [])
         description = company.get("description", "")
         phone = company.get("phone", "")
+        email = company.get("email", "")
         address = company.get("address", "")
         city = company.get("city", "")
         country = company.get("country", "")
+
+        # Normalize services to list
+        services_list = []
+        if isinstance(services, list):
+            services_list = [s for s in services if isinstance(s, str) and s.strip()]
+        elif isinstance(services, str) and services.strip():
+            services_list = [s.strip() for s in services.split(",") if s.strip()]
+
+        # Helper: match a specific service mentioned in the user message
+        matched_service = None
+        for svc in services_list:
+            try:
+                if svc and svc.lower() in msg:
+                    matched_service = svc
+                    break
+            except Exception:
+                continue
+
+        # Name intent: explicit requests for business/shop/company name
+        name_keywords = [
+            "shop name",
+            "store name",
+            "business name",
+            "company name",
+            "what is your name",
+            "what's your name",
+            "whats your name",
+        ]
+        if any(kw in msg for kw in name_keywords):
+            return (
+                f"Our company name is {name}.",
+                "name",
+                {"name": name}
+            )
 
         # Business hours / timings
         if any(k in msg for k in ["time", "timing", "hour", "open", "close", "business hour"]):
@@ -62,41 +97,173 @@ class BusinessChatbotView(APIView):
                 parts.append(f"on {days_str}")
             
             if parts:
-                return f"Our business hours are {' '.join(parts)}."
+                # Best-effort open/closed status using server local time
+                def _to_minutes(hhmm):
+                    try:
+                        h, m = str(hhmm).split(":")
+                        return int(h) * 60 + int(m)
+                    except Exception:
+                        return None
+                from datetime import datetime
+                now = datetime.now()
+                now_m = now.hour * 60 + now.minute
+                o_m = _to_minutes(opening_time)
+                c_m = _to_minutes(closing_time)
+                is_open = None
+                if o_m is not None and c_m is not None:
+                    is_open = (now_m >= o_m and now_m <= c_m)
+
+                return (
+                    f"Our business hours are {' '.join(parts)}.",
+                    "hours",
+                    {
+                        "opening_time": opening_time or None,
+                        "closing_time": closing_time or None,
+                        "working_days": working_days or [],
+                        "is_open_now": is_open,
+                    },
+                )
         
         # Working days specifically
         if any(k in msg for k in ["working day", "work day", "when are you open", "what days"]):
             if working_days and isinstance(working_days, list) and len(working_days) > 0:
                 if len(working_days) == 7:
-                    return "We are open every day of the week."
+                    return (
+                        "We are open every day of the week.",
+                        "hours",
+                        {
+                            "opening_time": opening_time or None,
+                            "closing_time": closing_time or None,
+                            "working_days": working_days or [],
+                        },
+                    )
                 elif len(working_days) == 1:
-                    return f"We are open on {working_days[0]}."
+                    return (
+                        f"We are open on {working_days[0]}.",
+                        "hours",
+                        {
+                            "opening_time": opening_time or None,
+                            "closing_time": closing_time or None,
+                            "working_days": working_days or [],
+                        },
+                    )
                 else:
                     days_str = ", ".join(working_days[:-1]) + f" and {working_days[-1]}"
-                    return f"We are open on {days_str}."
+                    return (
+                        f"We are open on {days_str}.",
+                        "hours",
+                        {
+                            "opening_time": opening_time or None,
+                            "closing_time": closing_time or None,
+                            "working_days": working_days or [],
+                        },
+                    )
 
         # Services
-        if any(k in msg for k in ["service", "offer", "provide", "serve"]):
+        if any(k in msg for k in ["service",  "serve"]):
             if services:
                 if isinstance(services, list) and len(services) > 0:
-                    services_str = ", ".join(services) if len(services) > 1 else services[0]
-                    return f"We offer the following services: {services_str}."
+                    services_str = ", ".join(services_list) if len(services_list) > 1 else services_list[0]
+                    return (
+                        f"We offer the following services: {services_str}.",
+                        "services",
+                        {"services": services_list},
+                    )
                 elif isinstance(services, str) and services:
-                    return f"We offer the following services: {services}."
+                    return (
+                        f"We offer the following services: {services}.",
+                        "services",
+                        {"services": services_list},
+                    )
             return None
+
+        # Availability checks like "do you have X" / "is X available"
+        availability_keywords = ["do you have", "is there", "available", "in stock", "sell", "carry"]
+        if any(k in msg for k in availability_keywords):
+            if matched_service:
+                return (
+                    f"Yes, we offer {matched_service}.",
+                    "service_check",
+                    {"query": matched_service, "available": True},
+                )
+            elif services_list:
+                return (
+                    "We may have what you're looking for. Here are our listed services.",
+                    "services",
+                    {"services": services_list},
+                )
+            else:
+                return (
+                    "Our services are not listed. Please contact us for availability.",
+                    "service_check",
+                    {"query": None, "available": None},
+                )
+
+        # Pricing queries: price, cost, rate, charges, fee, how much
+        pricing_keywords = ["price", "cost", "rate", "charges", "fee", "how much"]
+        if any(k in msg for k in pricing_keywords):
+            if matched_service:
+                return (
+                    f"Pricing for {matched_service} isn't listed. Please contact us for current rates.",
+                    "pricing",
+                    {"service": matched_service},
+                )
+            return (
+                "Pricing details aren't listed. Please contact us for current rates.",
+                "pricing",
+                {"service": None},
+            )
 
         # Location
         if any(k in msg for k in ["where", "location", "address"]):
             location = ", ".join(p for p in [address, city, country] if p)
-            return f"We are located at {location}." if location else None
+            return (
+                f"We are located at {location}.",
+                "location",
+                {"address": address or None, "city": city or None, "country": country or None},
+            ) if location else None
 
         # Contact
-        if any(k in msg for k in ["contact", "phone", "call", "number"]):
-            return f"You can contact us at {phone}." if phone else None
+        if any(k in msg for k in ["contact", "phone", "call", "number", "email", "mail"]):
+            if phone or email:
+                parts = []
+                if phone:
+                    parts.append(f"phone {phone}")
+                if email:
+                    parts.append(f"email {email}")
+                return (
+                    f"You can contact us via {' and '.join(parts)}.",
+                    "contact",
+                    {"phone": phone or None, "email": email or None},
+                )
+            return None
 
-        # About business
-        if msg.startswith(("what", "tell me", "about")):
-            return description or f"We are {name}."
+        # About/description intent: only respond when explicitly asked
+        description_keywords = [
+            "description",
+            "describe",
+            "about the company",
+            "about the business",
+            "about us",
+            "company overview",
+            "business overview",
+            "details about",
+            "what do you do",
+            "what does your company do",
+            "tell me about",
+            "what company do",
+            "what company do you provide",
+            "what business do you provide",
+        ]
+        if any(kw in msg for kw in description_keywords):
+            short = None
+            if isinstance(description, str) and description:
+                short = (description[:200] + ("…" if len(description) > 200 else ""))
+            return (
+                description or f"We are {name}.",
+                "description",
+                {"description": description or None, "descriptionShort": short or description or None},
+            )
 
         return None
 
@@ -207,8 +374,11 @@ Question: {question}
         # 1️⃣ FAST RULE-BASED RESPONSE
         rule_response = self._rule_based_response(company, message)
         if rule_response:
+            text, intent, data = rule_response
             return Response({
-                "response": rule_response,
+                "response": text,
+                "intent": intent,
+                "data": data,
                 "business_name": company.get("name", "")
             })
 
@@ -219,11 +389,15 @@ Question: {question}
         if ai_response:
             return Response({
                 "response": ai_response,
+                "intent": "general",
+                "data": None,
                 "business_name": company.get("name", "")
             })
 
         # 3️⃣ FINAL SAFETY FALLBACK
         return Response({
             "response": "I can help with services, timings, location, or contact details.",
+            "intent": "help",
+            "data": None,
             "business_name": company.get("name", "")
         })

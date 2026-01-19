@@ -97,6 +97,8 @@ export default function BusinessChatbot({ companyId, businessName }) {
     {
       type: "bot",
       text: `Hello! I'm here to help answer questions about ${businessName || "this business"}. What would you like to know?`,
+      // intent: "help",
+      timestamp: new Date().toISOString(),
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -117,12 +119,13 @@ export default function BusinessChatbot({ companyId, businessName }) {
     if (!message || loading) return;
 
     // Add user message
-    const userMessage = { type: "user", text: message };
+    const userMessage = { type: "user", text: message, timestamp: new Date().toISOString() };
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setLoading(true);
 
     try {
+      const start = Date.now();
       const response = await fetch(`${BASE_URL}/api/company/${companyId}/chatbot/`, {
         method: "POST",
         headers: {
@@ -143,7 +146,18 @@ export default function BusinessChatbot({ companyId, businessName }) {
       const botMessage = {
         type: "bot",
         text: data.response || "I'm sorry, I couldn't process that question.",
+        intent: data.intent || undefined,
+        data: data.data || undefined,
+        timestamp: new Date().toISOString(),
       };
+      // Natural typing delay so responses feel human
+      const minThink = 700; // ms
+      const jitter = Math.floor(Math.random() * 500); // 0-500ms
+      const elapsed = Date.now() - start;
+      const waitMs = Math.max(0, minThink + jitter - elapsed);
+      if (waitMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       // Log error for debugging
@@ -153,6 +167,8 @@ export default function BusinessChatbot({ companyId, businessName }) {
       const errorMessage = {
         type: "bot",
         text: error.message || "I'm sorry, I'm having trouble right now. Please try again later or contact the business directly.",
+        intent: undefined,
+        timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -167,6 +183,58 @@ export default function BusinessChatbot({ companyId, businessName }) {
     }
   };
 
+  const quickAsk = async (preset) => {
+    if (loading) return;
+    setInputValue(preset);
+    await handleSend();
+  };
+
+  const formatTime = (iso) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "";
+    }
+  };
+
+
+
+  const extractPhone = (text) => {
+    try {
+      const match = text.match(/(\+?\d[\d\s-]{7,}\d)/);
+      if (!match) return null;
+      const raw = match[1];
+      return raw.replace(/[^\d+]/g, "");
+    } catch {
+      return null;
+    }
+  };
+
+  const mapsUrlFromText = (text) => {
+    try {
+      const lower = text.toLowerCase();
+      const key = "located at";
+      const idx = lower.indexOf(key);
+      let query = idx !== -1 ? text.substring(idx + key.length).trim() : text;
+      query = query.replace(/^[.:\-\s]+/, "").replace(/[.]$/, "");
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    } catch {
+      return null;
+    }
+  };
+
+  const resetConversation = () => {
+    setMessages([
+      {
+        type: "bot",
+        text: `Restarted. Ask me about ${businessName || "this business"}.`,
+        intent: undefined,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+  };
+
   return (
     <div style={chatContainerStyle}>
       <div style={messagesStyle}>
@@ -175,7 +243,90 @@ export default function BusinessChatbot({ companyId, businessName }) {
             key={idx}
             style={msg.type === "user" ? userMessageStyle : botMessageStyle}
           >
-            {msg.text}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              {msg.type === "bot" ? (
+                // Intent-aware rendering with structured cards
+                msg.intent === "hours" && msg.data ? (
+                  <div style={{ width: "100%" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <div><strong>Open:</strong> {msg.data.opening_time || "Not available"}</div>
+                      <div><strong>Close:</strong> {msg.data.closing_time || "Not available"}</div>
+                    </div>
+                    <div style={{ marginTop: "0.25rem" }}>
+                      <strong>Days:</strong> {Array.isArray(msg.data.working_days) && msg.data.working_days.length > 0 ? msg.data.working_days.join(", ") : "Not specified"}
+                    </div>
+                  </div>
+                ) : msg.intent === "services" && msg.data ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                    {(msg.data.services || []).length > 0 ? (
+                      (msg.data.services).map((s, i) => (
+                        <span key={`${s}-${i}`} style={{
+                          padding: "0.2rem 0.5rem",
+                          background: "#f3f4f6",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "999px",
+                          fontSize: "0.85rem",
+                          color: "#374151",
+                        }}>{s}</span>
+                      ))
+                    ) : (
+                      <span>No services listed.</span>
+                    )}
+                  </div>
+                ) : msg.intent === "location" && msg.data ? (
+                  <div style={{ width: "100%" }}>
+                    <div>
+                      <strong>Address:</strong> {[msg.data.address, msg.data.city, msg.data.country].filter(Boolean).join(", ") || "Not available"}
+                    </div>
+                    <div style={{ marginTop: "0.35rem" }}>
+                      <a
+                        href={mapsUrlFromText([msg.data.address, msg.data.city, msg.data.country].filter(Boolean).join(", ")) || "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open in Maps"
+                        style={{ textDecoration: "none", color: "#3b82f6", fontSize: "0.9rem" }}
+                      >
+                        Open in Maps
+                      </a>
+                    </div>
+                  </div>
+                ) : msg.intent === "contact" && msg.data ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span><strong>Phone:</strong> {msg.data.phone || "Not available"}</span>
+                    {msg.data.phone && (
+                      <button
+                        onClick={() => {
+                          const phone = (msg.data.phone || "").replace(/[^\d+]/g, "");
+                          if (phone) window.location.href = `tel:${phone}`;
+                        }}
+                        title="Call"
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          color: "#10b981",
+                          cursor: "pointer",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        Call
+                      </button>
+                    )}
+                  </div>
+                ) : msg.intent === "name" && msg.data ? (
+                  <div><strong>Company Name:</strong> {msg.data.name}</div>
+                ) : msg.intent === "description" && msg.data ? (
+                  <div>{msg.data.description || msg.text}</div>
+                ) : (
+                  <span>{msg.text}</span>
+                )
+              ) : (
+                <span>{msg.text}</span>
+              )}
+              {/* All copy and intent badges removed as requested */}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
+              {formatTime(msg.timestamp)}
+            </div>
           </div>
         ))}
         {loading && (
@@ -185,7 +336,49 @@ export default function BusinessChatbot({ companyId, businessName }) {
         )}
         <div ref={messagesEndRef} />
       </div>
-      <div style={inputContainerStyle}>
+      <div style={{ ...inputContainerStyle, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", width: "100%", marginBottom: "0.5rem" }}>
+          {[
+            "What is your shop name?",
+            "Describe the company.",
+            "What services do you offer?",
+            "What are your business hours?",
+            "Where are you located?",
+            "How can I contact you?",
+          ].map((label) => (
+            <button
+              key={label}
+              disabled={loading}
+              onClick={() => quickAsk(label)}
+              style={{
+                padding: "0.4rem 0.6rem",
+                background: "#f3f4f6",
+                color: "#374151",
+                border: "1px solid #e5e7eb",
+                borderRadius: "999px",
+                cursor: loading ? "not-allowed" : "pointer",
+                fontSize: "0.85rem",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            onClick={resetConversation}
+            disabled={loading}
+            style={{
+              padding: "0.4rem 0.6rem",
+              background: "#fff",
+              color: "#ef4444",
+              border: "1px solid #fecaca",
+              borderRadius: "999px",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "0.85rem",
+            }}
+          >
+            Reset
+          </button>
+        </div>
         <input
           type="text"
           value={inputValue}
