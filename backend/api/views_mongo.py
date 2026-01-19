@@ -7,6 +7,11 @@ from rest_framework.views import APIView
 from datetime import datetime, timedelta
 from bson import ObjectId
 import math
+import os
+import secrets
+
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 from .mongo_auth import (
     create_user,
@@ -24,6 +29,30 @@ from .db_mongo import (
     ratings_collection,
     comments_collection,
 )
+
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+
+
+def _verify_google_token(id_token_value: str):
+    """
+    Verify a Google ID token and return the decoded payload, or None.
+    """
+    if not id_token_value or not GOOGLE_CLIENT_ID:
+        return None
+
+    try:
+        info = google_id_token.verify_oauth2_token(
+            id_token_value,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+        # Ensure the token has an email
+        if not info.get("email"):
+            return None
+        return info
+    except Exception:
+        return None
 
 
 def _get_auth_user(request, user_type=None):
@@ -312,6 +341,134 @@ class CompanyLoginView(APIView):
         )
 
 
+class CompanyGoogleLoginView(APIView):
+    """
+    POST /api/company/google-login/
+    Login or lightweight-signup a company account using a Google ID token.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, *args, **kwargs):
+        id_token_value = request.data.get("id_token", "")
+        if not id_token_value:
+            return Response(
+                {"detail": "id_token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        info = _verify_google_token(id_token_value)
+        if not info:
+            return Response(
+                {"detail": "Invalid Google ID token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        email = (info.get("email") or "").lower()
+        display_name = info.get("name") or email.split("@")[0]
+
+        if not email:
+            return Response(
+                {"detail": "Google account email is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing_user = get_user_by_email(email)
+        if existing_user:
+            if existing_user.get("user_type") != "company":
+                return Response(
+                    {"detail": "This email is already used for a different account type."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_id = str(existing_user["_id"])
+        else:
+            random_password = secrets.token_urlsafe(16)
+            user_id = create_user(
+                email=email,
+                password=random_password,
+                user_type="company",
+                google_sub=info.get("sub"),
+            )
+
+        # Ensure company profile exists (create a minimal one if needed)
+        company = companies_collection.find_one({"user_id": user_id})
+        if not company:
+            company_doc = {
+                "user_id": user_id,
+                "name": display_name,
+                "email": email,
+                "category": "",
+                "description": "",
+                "phone": "",
+                "address": "",
+                "city": "",
+                "country": "",
+                "services": [],
+                "opening_time": "",
+                "closing_time": "",
+                "working_days": [],
+                "rating": 0.0,
+                "average_rating": 0.0,
+                "total_reviews": 0,
+                "reputation_score": 0.0,
+                "recommendation_score": 0.0,
+                "is_verified": False,
+                "is_active": True,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+            result = companies_collection.insert_one(company_doc)
+            company_id = str(result.inserted_id)
+            companies_collection.update_one(
+                {"_id": result.inserted_id},
+                {"$set": {"company_id": company_id}},
+            )
+            company_doc["company_id"] = company_id
+            company = company_doc
+        else:
+            company_id = company.get("company_id") or str(company.get("_id"))
+
+        token = create_token(user_id, "company")
+
+        events_collection.insert_one(
+            {
+                "event_type": "company_google_login",
+                "company_id": company_id,
+                "user_id": user_id,
+                "company_name": company.get("name"),
+                "email": email,
+                "timestamp": datetime.utcnow(),
+            }
+        )
+
+        return Response(
+            {
+                "token": token,
+                "company": {
+                    "id": company_id,
+                    "name": company.get("name"),
+                    "email": company.get("email"),
+                    "category": company.get("category", ""),
+                    "description": company.get("description", ""),
+                    "phone": company.get("phone", ""),
+                    "address": company.get("address", ""),
+                    "city": company.get("city", ""),
+                    "country": company.get("country", ""),
+                    "services": company.get("services", []),
+                    "opening_time": company.get("opening_time", ""),
+                    "closing_time": company.get("closing_time", ""),
+                    "working_days": company.get("working_days", []),
+                    "average_rating": float(company.get("average_rating", 0.0)),
+                    "total_reviews": int(company.get("total_reviews", 0)),
+                    "is_verified": bool(company.get("is_verified", False)),
+                    "is_active": bool(company.get("is_active", True)),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class CustomerSignupView(APIView):
     """
     POST /api/customer/signup/
@@ -436,6 +593,97 @@ class CustomerLoginView(APIView):
                     "email": user.get("email"),
                     "first_name": user.get("first_name", ""),
                     "last_name": user.get("last_name", ""),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CustomerGoogleLoginView(APIView):
+    """
+    POST /api/customer/google-login/
+    Login or signup a customer using a Google ID token.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, *args, **kwargs):
+        id_token_value = request.data.get("id_token", "")
+        if not id_token_value:
+            return Response(
+                {"detail": "id_token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        info = _verify_google_token(id_token_value)
+        if not info:
+            return Response(
+                {"detail": "Invalid Google ID token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        email = (info.get("email") or "").lower()
+        first_name = info.get("given_name") or ""
+        last_name = info.get("family_name") or ""
+
+        if not email:
+            return Response(
+                {"detail": "Google account email is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing_user = get_user_by_email(email)
+        if existing_user:
+            if existing_user.get("user_type") != "customer":
+                return Response(
+                    {"detail": "This email is already used for a different account type."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_id = str(existing_user["_id"])
+        else:
+            random_password = secrets.token_urlsafe(16)
+            user_id = create_user(
+                email=email,
+                password=random_password,
+                user_type="customer",
+                first_name=first_name,
+                last_name=last_name,
+                google_sub=info.get("sub"),
+            )
+
+        # Ensure customer profile exists
+        customer_doc = customers_collection.find_one({"user_id": user_id})
+        if not customer_doc:
+            customers_collection.insert_one(
+                {
+                    "user_id": user_id,
+                    "email": email,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "created_at": datetime.utcnow(),
+                }
+            )
+
+        token = create_token(user_id, "customer")
+
+        events_collection.insert_one(
+            {
+                "event_type": "customer_google_login",
+                "user_id": user_id,
+                "email": email,
+                "timestamp": datetime.utcnow(),
+            }
+        )
+
+        return Response(
+            {
+                "token": token,
+                "user": {
+                    "id": user_id,
+                    "email": email,
+                    "first_name": first_name,
+                    "last_name": last_name,
                 },
             },
             status=status.HTTP_200_OK,

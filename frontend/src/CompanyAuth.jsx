@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 const BASE_URL = "http://localhost:8000"; // change if your backend runs elsewhere
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "";
 
 function saveToken(token) {
   localStorage.setItem("companyToken", token);
@@ -97,6 +98,75 @@ export function CompanySignupPage() {
       setLoading(false);
     }
   };
+
+  const handleGoogleCredentialSignup = useCallback(async (response) => {
+    try {
+      const idToken = response.credential;
+      if (!idToken) {
+        throw new Error("Missing Google credential.");
+      }
+      setLoading(true);
+      setSignupStatus(null);
+
+      const data = await apiRequest("/api/company/google-login/", {
+        id_token: idToken,
+      });
+
+      saveToken(data.token);
+      if (data.company) {
+        localStorage.setItem("companyData", JSON.stringify(data.company));
+      }
+      setSignupStatus({
+        type: "success",
+        message: "Signed up with Google. Redirecting...",
+      });
+      setTimeout(() => navigate("/dashboard"), 150);
+    } catch (err) {
+      console.error("Google company signup error:", err);
+      setSignupStatus({
+        type: "error",
+        message: err.message || "Google signup failed.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const initGoogleButton = () => {
+      if (!GOOGLE_CLIENT_ID || !window.google) {
+        return;
+      }
+      const btnElement = document.getElementById("company-signup-google-btn");
+      if (!btnElement) {
+        return;
+      }
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredentialSignup,
+        });
+        window.google.accounts.id.renderButton(
+          btnElement,
+          { theme: "outline", size: "large", width: "100%" }
+        );
+      } catch (e) {
+        console.error("Failed to initialize Google Identity Services (company signup):", e);
+      }
+    };
+
+    if (window.google) {
+      initGoogleButton();
+    } else {
+      const checkGoogle = setInterval(() => {
+        if (window.google) {
+          clearInterval(checkGoogle);
+          initGoogleButton();
+        }
+      }, 100);
+      return () => clearInterval(checkGoogle);
+    }
+  }, [handleGoogleCredentialSignup]);
 
   return (
     <div style={containerStyle}>
@@ -241,6 +311,26 @@ export function CompanySignupPage() {
             </div>
           )}
         </form>
+
+        <div
+          style={{
+            marginTop: "1rem",
+            borderTop: "1px solid #e5e7eb",
+            paddingTop: "1rem",
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 0.5rem",
+              fontSize: "0.85rem",
+              color: "#6b7280",
+              textAlign: "center",
+            }}
+          >
+            Or sign up with
+          </p>
+          <div id="company-signup-google-btn" style={{ display: "flex", justifyContent: "center" }} />
+        </div>
       </div>
     </div>
   );
@@ -288,6 +378,75 @@ export function CompanyLoginPage() {
       setLoading(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(async (response) => {
+    try {
+      const idToken = response.credential;
+      if (!idToken) {
+        throw new Error("Missing Google credential.");
+      }
+      setLoading(true);
+      setLoginStatus(null);
+
+      const data = await apiRequest("/api/company/google-login/", {
+        id_token: idToken,
+      });
+
+      saveToken(data.token);
+      if (data.company) {
+        localStorage.setItem("companyData", JSON.stringify(data.company));
+      }
+      setLoginStatus({
+        type: "success",
+        message: "Logged in with Google. Redirecting...",
+      });
+      setTimeout(() => navigate("/dashboard"), 150);
+    } catch (err) {
+      console.error("Google company login error:", err);
+      setLoginStatus({
+        type: "error",
+        message: err.message || "Google login failed.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const initGoogleButton = () => {
+      if (!GOOGLE_CLIENT_ID || !window.google) {
+        return;
+      }
+      const btnElement = document.getElementById("company-google-btn");
+      if (!btnElement) {
+        return;
+      }
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredential,
+        });
+        window.google.accounts.id.renderButton(
+          btnElement,
+          { theme: "outline", size: "large", width: "100%" }
+        );
+      } catch (e) {
+        console.error("Failed to initialize Google Identity Services (company):", e);
+      }
+    };
+
+    if (window.google) {
+      initGoogleButton();
+    } else {
+      const checkGoogle = setInterval(() => {
+        if (window.google) {
+          clearInterval(checkGoogle);
+          initGoogleButton();
+        }
+      }, 100);
+      return () => clearInterval(checkGoogle);
+    }
+  }, [handleGoogleCredential]);
 
   return (
     <div style={containerStyle}>
@@ -365,6 +524,26 @@ export function CompanyLoginPage() {
             </div>
           )}
         </form>
+
+        <div
+          style={{
+            marginTop: "1rem",
+            borderTop: "1px solid #e5e7eb",
+            paddingTop: "1rem",
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 0.5rem",
+              fontSize: "0.85rem",
+              color: "#6b7280",
+              textAlign: "center",
+            }}
+          >
+            Or continue with
+          </p>
+          <div id="company-google-btn" style={{ display: "flex", justifyContent: "center" }} />
+        </div>
       </div>
     </div>
   );

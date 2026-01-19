@@ -14,6 +14,8 @@ from .views_mongo import (
     CompanyFeedbackView,
     MongoCompanyListView,
     CompanyDetailView,
+    CustomerGoogleLoginView,
+    CompanyGoogleLoginView,
 )
 from .chatbot_view import BusinessChatbotView
 
@@ -25,6 +27,7 @@ urlpatterns = [
     # CUSTOMER AUTH ROUTES (MongoDB-based)
     path("customer/signup/", CustomerSignupView.as_view(), name="customer-signup"),
     path("customer/login/", CustomerLoginView.as_view(), name="customer-login"),
+    path("customer/google-login/", CustomerGoogleLoginView.as_view(), name="customer-google-login"),
 
     # COMPANY RATING ROUTE
     path(
@@ -44,6 +47,7 @@ urlpatterns = [
     path("company/search/", CompanySearchView.as_view(), name="company-search"),
     path("company/top/", TopBusinessesView.as_view(), name="company-top"),
     path("company/recommendations/", RecommendationsView.as_view(), name="company-recommendations"),
+    path("company/google-login/", CompanyGoogleLoginView.as_view(), name="company-google-login"),
 
     # Company owner self endpoints
     path("company/me/", CompanyMeView.as_view(), name="company-me"),

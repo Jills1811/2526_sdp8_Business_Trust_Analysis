@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 const BASE_URL = "http://localhost:8000";
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "";
 
 function saveCustomerToken(token) {
   localStorage.setItem("customerToken", token);
@@ -90,6 +91,75 @@ export function CustomerSignupPage() {
     }
   };
 
+  const handleGoogleCredentialSignup = useCallback(async (response) => {
+    try {
+      const idToken = response.credential;
+      if (!idToken) {
+        throw new Error("Missing Google credential.");
+      }
+      setLoading(true);
+      setSignupStatus(null);
+
+      const data = await apiRequest("/api/customer/google-login/", {
+        id_token: idToken,
+      });
+
+      saveCustomerToken(data.token);
+      if (data.user) {
+        localStorage.setItem("customerData", JSON.stringify(data.user));
+      }
+      setSignupStatus({
+        type: "success",
+        message: "Signed up with Google. Redirecting...",
+      });
+      setTimeout(() => navigate("/customer/home"), 150);
+    } catch (err) {
+      console.error("Google signup error:", err);
+      setSignupStatus({
+        type: "error",
+        message: err.message || "Google signup failed.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const initGoogleButton = () => {
+      if (!GOOGLE_CLIENT_ID || !window.google) {
+        return;
+      }
+      const btnElement = document.getElementById("customer-signup-google-btn");
+      if (!btnElement) {
+        return;
+      }
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredentialSignup,
+        });
+        window.google.accounts.id.renderButton(
+          btnElement,
+          { theme: "outline", size: "large", width: "100%" }
+        );
+      } catch (e) {
+        console.error("Failed to initialize Google Identity Services (signup):", e);
+      }
+    };
+
+    if (window.google) {
+      initGoogleButton();
+    } else {
+      const checkGoogle = setInterval(() => {
+        if (window.google) {
+          clearInterval(checkGoogle);
+          initGoogleButton();
+        }
+      }, 100);
+      return () => clearInterval(checkGoogle);
+    }
+  }, [handleGoogleCredentialSignup]);
+
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
@@ -170,6 +240,26 @@ export function CustomerSignupPage() {
             </div>
           )}
         </form>
+
+        <div
+          style={{
+            marginTop: "1rem",
+            borderTop: "1px solid #e5e7eb",
+            paddingTop: "1rem",
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 0.5rem",
+              fontSize: "0.85rem",
+              color: "#6b7280",
+              textAlign: "center",
+            }}
+          >
+            Or sign up with
+          </p>
+          <div id="customer-signup-google-btn" style={{ display: "flex", justifyContent: "center" }} />
+        </div>
       </div>
     </div>
   );
@@ -216,6 +306,75 @@ export function CustomerLoginPage() {
       setLoading(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(async (response) => {
+    try {
+      const idToken = response.credential;
+      if (!idToken) {
+        throw new Error("Missing Google credential.");
+      }
+      setLoading(true);
+      setLoginStatus(null);
+
+      const data = await apiRequest("/api/customer/google-login/", {
+        id_token: idToken,
+      });
+
+      saveCustomerToken(data.token);
+      if (data.user) {
+        localStorage.setItem("customerData", JSON.stringify(data.user));
+      }
+      setLoginStatus({
+        type: "success",
+        message: "Logged in with Google. Redirecting...",
+      });
+      setTimeout(() => navigate("/customer/home"), 150);
+    } catch (err) {
+      console.error("Google login error:", err);
+      setLoginStatus({
+        type: "error",
+        message: err.message || "Google login failed.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const initGoogleButton = () => {
+      if (!GOOGLE_CLIENT_ID || !window.google) {
+        return;
+      }
+      const btnElement = document.getElementById("customer-google-btn");
+      if (!btnElement) {
+        return;
+      }
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredential,
+        });
+        window.google.accounts.id.renderButton(
+          btnElement,
+          { theme: "outline", size: "large", width: "100%" }
+        );
+      } catch (e) {
+        console.error("Failed to initialize Google Identity Services:", e);
+      }
+    };
+
+    if (window.google) {
+      initGoogleButton();
+    } else {
+      const checkGoogle = setInterval(() => {
+        if (window.google) {
+          clearInterval(checkGoogle);
+          initGoogleButton();
+        }
+      }, 100);
+      return () => clearInterval(checkGoogle);
+    }
+  }, [handleGoogleCredential]);
 
   return (
     <div style={containerStyle}>
@@ -293,6 +452,26 @@ export function CustomerLoginPage() {
             </div>
           )}
         </form>
+
+        <div
+          style={{
+            marginTop: "1rem",
+            borderTop: "1px solid #e5e7eb",
+            paddingTop: "1rem",
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 0.5rem",
+              fontSize: "0.85rem",
+              color: "#6b7280",
+              textAlign: "center",
+            }}
+          >
+            Or continue with
+          </p>
+          <div id="customer-google-btn" style={{ display: "flex", justifyContent: "center" }} />
+        </div>
       </div>
     </div>
   );
