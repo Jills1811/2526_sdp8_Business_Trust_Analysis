@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getCustomerToken } from "./CustomerAuth";
 
 const BASE_URL = "http://localhost:8000";
 
@@ -32,7 +33,9 @@ export default function Recommendations() {
       if (v) url.searchParams.set(k, v);
     });
     try {
-      const res = await fetch(url.toString());
+      const token = getCustomerToken();
+      const headers = token ? { Authorization: `Token ${token}` } : {};
+      const res = await fetch(url.toString(), { headers });
       const json = await res.json();
       setItems(Array.isArray(json.recommendations) ? json.recommendations : []);
     } catch {
@@ -56,7 +59,9 @@ export default function Recommendations() {
       <div style={{ maxWidth: "960px", margin: "0 auto" }}>
         <div style={cardStyle}>
           <h2 style={{ marginTop: 0 }}>Recommended Businesses</h2>
-          <p style={{ color: "#4b5563" }}>Recommendations prioritize reputation score, then average rating. Filter by name, category, and location.</p>
+          <p style={{ color: "#4b5563" }}>
+            Personalized recommendations based on your recent views (40%), search activity (30%), your location (20%), and each business&apos;s reputation (10%).
+          </p>
           <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem" }}>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name contains" style={{ padding: "0.6rem", border: "1px solid #d1d5db", borderRadius: "0.5rem" }} />
             <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category" style={{ padding: "0.6rem", border: "1px solid #d1d5db", borderRadius: "0.5rem" }} />

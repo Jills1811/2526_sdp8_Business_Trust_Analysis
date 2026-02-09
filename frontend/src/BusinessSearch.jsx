@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getCustomerToken } from "./CustomerAuth";
 
 const BASE_URL = "http://localhost:8000";
 
@@ -32,7 +33,9 @@ export default function BusinessSearch() {
       if (v) url.searchParams.set(k, v);
     });
     try {
-      const res = await fetch(url.toString());
+      const token = getCustomerToken();
+      const headers = token ? { Authorization: `Token ${token}` } : {};
+      const res = await fetch(url.toString(), { headers });
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
       setResults(Array.isArray(data.results) ? data.results : []);

@@ -21,6 +21,7 @@ from .mongo_auth import (
     get_user_by_id,
     get_user_by_email,
     delete_token,
+    users_collection,
 )
 from .db_mongo import (
     companies_collection,
@@ -28,6 +29,7 @@ from .db_mongo import (
     events_collection,
     ratings_collection,
     comments_collection,
+    search_history_collection,
 )
 
 
@@ -481,6 +483,7 @@ class CustomerSignupView(APIView):
         password = data.get("password", "")
         first_name = (data.get("first_name") or "").strip()
         last_name = (data.get("last_name") or "").strip()
+        location = (data.get("location") or "").strip()
         
         if not email or not password:
             return Response(
@@ -501,23 +504,28 @@ class CustomerSignupView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        # Create user in MongoDB
+        # Create user in MongoDB (store basic profile + location on the user document as well)
         user_id = create_user(
             email=email,
             password=password,
             user_type="customer",
             first_name=first_name,
             last_name=last_name,
+            location=location,
         )
         
-        # Create customer profile
-        customers_collection.insert_one({
-            "user_id": user_id,
-            "email": email,
-            "first_name": first_name,
-            "last_name": last_name,
-            "created_at": datetime.utcnow(),
-        })
+        # Create customer profile (per-customer data for recommendations)
+        customers_collection.insert_one(
+            {
+                "user_id": user_id,
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "location": location,
+                "recently_viewed": [],  # list of company_ids
+                "created_at": datetime.utcnow(),
+            }
+        )
         
         # Create token
         token = create_token(user_id, "customer")
@@ -538,6 +546,8 @@ class CustomerSignupView(APIView):
                     "email": email,
                     "first_name": first_name,
                     "last_name": last_name,
+                    "location": location,
+                    "recently_viewed": [],
                 },
             },
             status=status.HTTP_201_CREATED,
@@ -573,6 +583,9 @@ class CustomerLoginView(APIView):
                 {"detail": "User not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        # Get customer profile for recommendation-related fields
+        customer_profile = customers_collection.find_one({"user_id": user_id}) or {}
         
         # Create token
         token = create_token(user_id, "customer")
@@ -593,6 +606,8 @@ class CustomerLoginView(APIView):
                     "email": user.get("email"),
                     "first_name": user.get("first_name", ""),
                     "last_name": user.get("last_name", ""),
+                    "location": customer_profile.get("location", ""),
+                    "recently_viewed": customer_profile.get("recently_viewed", []),
                 },
             },
             status=status.HTTP_200_OK,
@@ -652,7 +667,7 @@ class CustomerGoogleLoginView(APIView):
                 google_sub=info.get("sub"),
             )
 
-        # Ensure customer profile exists
+        # Ensure customer profile exists (with recommendation-related fields)
         customer_doc = customers_collection.find_one({"user_id": user_id})
         if not customer_doc:
             customers_collection.insert_one(
@@ -661,9 +676,22 @@ class CustomerGoogleLoginView(APIView):
                     "email": email,
                     "first_name": first_name,
                     "last_name": last_name,
+                    "location": "",
+                    "recently_viewed": [],
                     "created_at": datetime.utcnow(),
                 }
             )
+            customer_doc = customers_collection.find_one({"user_id": user_id})
+        else:
+            # Backfill new fields if missing on existing users
+            updates = {}
+            if "location" not in customer_doc:
+                updates["location"] = ""
+            if "recently_viewed" not in customer_doc:
+                updates["recently_viewed"] = []
+            if updates:
+                customers_collection.update_one({"user_id": user_id}, {"$set": updates})
+                customer_doc.update(updates)
 
         token = create_token(user_id, "customer")
 
@@ -684,6 +712,8 @@ class CustomerGoogleLoginView(APIView):
                     "email": email,
                     "first_name": first_name,
                     "last_name": last_name,
+                    "location": customer_doc.get("location", ""),
+                    "recently_viewed": customer_doc.get("recently_viewed", []),
                 },
             },
             status=status.HTTP_200_OK,
@@ -990,6 +1020,10 @@ class CompanyCommentView(APIView):
 class CompanySearchView(APIView):
     """GET /api/company/search/"""
 
+    # Public endpoint – we handle customer auth manually for search history only
+    authentication_classes = []
+    permission_classes = []
+
     def get(self, request, *args, **kwargs):
         q = (request.GET.get("q") or "").strip()
         category = (request.GET.get("category") or "").strip()
@@ -1005,6 +1039,22 @@ class CompanySearchView(APIView):
             query["city"] = {"$regex": city, "$options": "i"}
         if country:
             query["country"] = {"$regex": country, "$options": "i"}
+
+        # Log search history for authenticated customers (for recommendations)
+        customer = _get_auth_user(request, user_type="customer")
+        if customer and (q or category):
+            try:
+                search_history_collection.insert_one(
+                    {
+                        "user_id": str(customer["_id"]),
+                        "query": q,
+                        "category": category,
+                        "timestamp": datetime.utcnow(),
+                    }
+                )
+            except Exception:
+                # Don't break search if logging fails
+                pass
         
         docs = list(
             companies_collection.find(query)
@@ -1089,57 +1139,183 @@ class TopBusinessesView(APIView):
 
 
 class RecommendationsView(APIView):
-    """GET /api/company/recommendations/"""
+    """
+    GET /api/company/recommendations/
+
+    Personalized recommendation scoring with priorities:
+    - Recently viewed businesses (40%)
+    - Search history (30%)
+    - User location (20%)
+    - Business reputation (10%)
+    """
+
+    authentication_classes = []
+    permission_classes = []
 
     def get(self, request, *args, **kwargs):
-        category = (request.GET.get("category") or "").strip()
-        q = (request.GET.get("q") or "").strip()
-        city = (request.GET.get("city") or "").strip()
-        country = (request.GET.get("country") or "").strip()
+        category_filter = (request.GET.get("category") or "").strip()
+        q_filter = (request.GET.get("q") or "").strip()
+        city_filter = (request.GET.get("city") or "").strip()
+        country_filter = (request.GET.get("country") or "").strip()
+
+        # Always cap to 10 for the UI, even if a higher limit is requested
         try:
-            limit = int(request.GET.get("limit", 10))
+            limit = min(int(request.GET.get("limit", 10)), 10)
         except ValueError:
             limit = 10
-        
-        query = {"is_active": True}
-        if category:
-            query["category"] = {"$regex": category, "$options": "i"}
-        if q:
-            query["name"] = {"$regex": q, "$options": "i"}
-        if city:
-            query["city"] = {"$regex": city, "$options": "i"}
-        if country:
-            query["country"] = {"$regex": country, "$options": "i"}
-        
-        docs = list(
-            companies_collection.find(query)
+
+        # Build base company query (public filters)
+        base_query = {"is_active": True}
+        if category_filter:
+            base_query["category"] = {"$regex": category_filter, "$options": "i"}
+        if q_filter:
+            base_query["name"] = {"$regex": q_filter, "$options": "i"}
+        if city_filter:
+            base_query["city"] = {"$regex": city_filter, "$options": "i"}
+        if country_filter:
+            base_query["country"] = {"$regex": country_filter, "$options": "i"}
+
+        # Fetch a reasonable pool of candidates
+        candidate_docs = list(
+            companies_collection.find(base_query)
             .sort([("reputation_score", -1), ("average_rating", -1), ("name", 1)])
-            .limit(limit)
+            .limit(200)
         )
-        
-        recommendations = []
-        for doc in docs:
+
+        # If no candidates, just return empty
+        if not candidate_docs:
+            return Response({"recommendations": []})
+
+        # Try to get the authenticated customer for personalization
+        customer = _get_auth_user(request, user_type="customer")
+
+        # If no customer, fall back to simple reputation-based sort
+        if not customer:
+            recommendations = []
+            for doc in candidate_docs[:limit]:
+                company_id = doc.get("company_id") or str(doc.get("_id"))
+                reputation_score = doc.get("reputation_score")
+                if reputation_score is None or reputation_score == 0.0:
+                    reputation_score = calculate_reputation_score(company_id)
+                recommendations.append(
+                    {
+                        "id": company_id,
+                        "name": doc.get("name", ""),
+                        "category": doc.get("category", ""),
+                        "city": doc.get("city", ""),
+                        "country": doc.get("country", ""),
+                        "average_rating": float(doc.get("average_rating", 0.0)),
+                        "total_reviews": int(doc.get("total_reviews", 0)),
+                        "reputation_score": float(reputation_score or 0.0),
+                        "score": float(reputation_score or 0.0),
+                    }
+                )
+            return Response({"recommendations": recommendations})
+
+        user_id = str(customer["_id"])
+
+        # Load customer profile (location + recently_viewed)
+        customer_profile = customers_collection.find_one({"user_id": user_id}) or {}
+        customer_location = (customer_profile.get("location") or "").lower()
+        recently_viewed = customer_profile.get("recently_viewed", []) or []
+
+        # Compute recency-based weights for recently viewed companies
+        recently_weight_map = {}  # company_id -> 0..1
+        if recently_viewed:
+            n = len(recently_viewed)
+            for idx, cid in enumerate(recently_viewed):
+                # Most recent gets weight ~1, older decay linearly
+                recently_weight_map[cid] = (n - idx) / float(n)
+
+        # Determine the category of the last viewed company for an extra boost
+        last_viewed_category = None
+        if recently_viewed:
+            last_id = recently_viewed[0]
+            last_doc = companies_collection.find_one(
+                {"company_id": last_id}
+            ) or companies_collection.find_one({"_id": ObjectId(last_id)})
+            if last_doc:
+                last_viewed_category = (last_doc.get("category") or "").lower()
+
+        # Build category preferences from search history
+        category_interest = {}  # category -> score
+        history_cursor = (
+            search_history_collection.find({"user_id": user_id})
+            .sort("timestamp", -1)
+            .limit(100)
+        )
+        for idx, sh in enumerate(history_cursor):
+            cat = (sh.get("category") or "").strip().lower()
+            if not cat:
+                continue
+            # More recent entries get slightly higher weight
+            weight = 1.0 / (1.0 + idx)
+            category_interest[cat] = category_interest.get(cat, 0.0) + weight
+
+        # Normalize search category scores to 0..1
+        if category_interest:
+            max_cat_score = max(category_interest.values())
+            if max_cat_score > 0:
+                for k in list(category_interest.keys()):
+                    category_interest[k] = category_interest[k] / max_cat_score
+
+        # Now score each candidate
+        scored = []
+        for doc in candidate_docs:
             company_id = doc.get("company_id") or str(doc.get("_id"))
+            category = (doc.get("category") or "").lower()
+            city = (doc.get("city") or "").lower()
+            country = (doc.get("country") or "").lower()
+
+            # Recently viewed component (0-1)
+            rv_score = recently_weight_map.get(company_id, 0.0)
+
+            # Search history component (0-1) based on category preference
+            sh_score = category_interest.get(category, 0.0)
+
+            # Location component (0-1)
+            loc_score = 0.0
+            if customer_location:
+                if city and city in customer_location or customer_location in city:
+                    loc_score = 1.0
+                elif country and country in customer_location or customer_location in country:
+                    loc_score = 0.7
+
+            # Reputation component (0-1)
             reputation_score = doc.get("reputation_score")
-            # Calculate if missing or 0
             if reputation_score is None or reputation_score == 0.0:
                 reputation_score = calculate_reputation_score(company_id)
-                if reputation_score > 0:
-                    companies_collection.update_one(
-                        {"company_id": company_id},
-                        {"$set": {"reputation_score": reputation_score}}
-                    )
-            
-            recommendations.append({
-                "id": company_id,
-                "name": doc.get("name", ""),
-                "category": doc.get("category", ""),
-                "average_rating": float(doc.get("average_rating", 0.0)),
-                "total_reviews": int(doc.get("total_reviews", 0)),
-                "reputation_score": float(reputation_score or 0.0),
-            })
-        
-        return Response({"recommendations": recommendations})
+            rep_norm = max(0.0, min(1.0, float(reputation_score or 0.0) / 100.0))
+
+            # Weighted sum
+            base_score = (
+                0.4 * rv_score
+                + 0.3 * sh_score
+                + 0.2 * loc_score
+                + 0.1 * rep_norm
+            )
+
+            # Extra boost if category matches the last viewed company's category
+            if last_viewed_category and category == last_viewed_category:
+                base_score += 0.05
+
+            scored.append(
+                {
+                    "id": company_id,
+                    "name": doc.get("name", ""),
+                    "category": doc.get("category", ""),
+                    "city": doc.get("city", ""),
+                    "country": doc.get("country", ""),
+                    "average_rating": float(doc.get("average_rating", 0.0)),
+                    "total_reviews": int(doc.get("total_reviews", 0)),
+                    "reputation_score": float(reputation_score or 0.0),
+                    "score": round(base_score * 100.0, 2),  # for debugging / UI
+                }
+            )
+
+        # Sort by score descending and take top 10
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return Response({"recommendations": scored[:limit]})
 
 
 class CompanyMeView(APIView):
@@ -1361,11 +1537,124 @@ class CompanyFeedbackView(APIView):
         })
 
 
+class CustomerMeView(APIView):
+    """
+    GET /api/customer/me/
+    PATCH /api/customer/me/
+    View and update the logged-in customer's profile (name, location, etc.).
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    editable_fields = [
+        "first_name",
+        "last_name",
+        "location",
+    ]
+
+    def _get_customer(self, request):
+        user = _get_auth_user(request, user_type="customer")
+        if not user:
+            return None, None
+        user_id = str(user["_id"])
+        profile = customers_collection.find_one({"user_id": user_id})
+        return user, profile
+
+    def get(self, request, *args, **kwargs):
+        user, profile = self._get_customer(request)
+        if not user:
+            return Response(
+                {"detail": "Customer authentication required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user_id = str(user["_id"])
+
+        if not profile:
+            profile = {
+                "user_id": user_id,
+                "email": user.get("email", ""),
+                "first_name": user.get("first_name", ""),
+                "last_name": user.get("last_name", ""),
+                "location": user.get("location", ""),
+                "recently_viewed": [],
+                "created_at": datetime.utcnow(),
+            }
+            customers_collection.insert_one(profile)
+
+        return Response(
+            {
+                "id": user_id,
+                "email": profile.get("email", user.get("email", "")),
+                "first_name": profile.get("first_name", user.get("first_name", "")),
+                "last_name": profile.get("last_name", user.get("last_name", "")),
+                "location": profile.get("location", user.get("location", "")),
+                "recently_viewed": profile.get("recently_viewed", []),
+            }
+        )
+
+    def patch(self, request, *args, **kwargs):
+        user, profile = self._get_customer(request)
+        if not user:
+            return Response(
+                {"detail": "Customer authentication required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user_id = str(user["_id"])
+
+        if not profile:
+            profile = {
+                "user_id": user_id,
+                "email": user.get("email", ""),
+                "first_name": user.get("first_name", ""),
+                "last_name": user.get("last_name", ""),
+                "location": user.get("location", ""),
+                "recently_viewed": [],
+                "created_at": datetime.utcnow(),
+            }
+            customers_collection.insert_one(profile)
+
+        updates = {}
+        for field in self.editable_fields:
+            if field in request.data:
+                updates[field] = request.data[field]
+
+        if updates:
+            updates["updated_at"] = datetime.utcnow()
+            customers_collection.update_one(
+                {"user_id": user_id},
+                {"$set": updates},
+            )
+            # Also update the unified users collection for consistency
+            users_collection.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {k: v for k, v in updates.items() if k in ["first_name", "last_name", "location"]}},
+            )
+
+        updated = customers_collection.find_one({"user_id": user_id}) or profile
+
+        return Response(
+            {
+                "id": user_id,
+                "email": updated.get("email", user.get("email", "")),
+                "first_name": updated.get("first_name", user.get("first_name", "")),
+                "last_name": updated.get("last_name", user.get("last_name", "")),
+                "location": updated.get("location", user.get("location", "")),
+                "recently_viewed": updated.get("recently_viewed", []),
+            }
+        )
+
+
 class CompanyDetailView(APIView):
     """
     GET /api/company/<company_id>/
     Returns a single company's details from MongoDB.
     """
+    # Public endpoint – we use our own lightweight token parsing for recently_viewed
+    authentication_classes = []
+    permission_classes = []
 
     def get(self, request, company_id, *args, **kwargs):
         # Try finding by company_id first
@@ -1403,6 +1692,42 @@ class CompanyDetailView(APIView):
                     {"company_id": final_company_id},
                     {"$set": {"reputation_score": reputation_score}}
                 )
+
+        # If a customer is logged in, update their recently_viewed list
+        customer = _get_auth_user(request, user_type="customer")
+        if customer:
+            user_id = str(customer["_id"])
+            # Ensure profile exists
+            profile = customers_collection.find_one({"user_id": user_id})
+            if not profile:
+                profile = {
+                    "user_id": user_id,
+                    "email": customer.get("email", ""),
+                    "first_name": customer.get("first_name", ""),
+                    "last_name": customer.get("last_name", ""),
+                    "location": customer.get("location", ""),
+                    "recently_viewed": [],
+                    "created_at": datetime.utcnow(),
+                }
+                customers_collection.insert_one(profile)
+
+            # Remove existing occurrences of this company_id then push to front, keep last 5
+            customers_collection.update_one(
+                {"user_id": user_id},
+                {"$pull": {"recently_viewed": final_company_id}},
+            )
+            customers_collection.update_one(
+                {"user_id": user_id},
+                {
+                    "$push": {
+                        "recently_viewed": {
+                            "$each": [final_company_id],
+                            "$position": 0,
+                             "$slice": 5,
+                        }
+                    }
+                },
+            )
         
         return Response({
             "id": final_company_id,

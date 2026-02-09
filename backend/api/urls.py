@@ -16,6 +16,7 @@ from .views_mongo import (
     CompanyDetailView,
     CustomerGoogleLoginView,
     CompanyGoogleLoginView,
+    CustomerMeView,
 )
 from .chatbot_view import BusinessChatbotView
 
@@ -28,6 +29,7 @@ urlpatterns = [
     path("customer/signup/", CustomerSignupView.as_view(), name="customer-signup"),
     path("customer/login/", CustomerLoginView.as_view(), name="customer-login"),
     path("customer/google-login/", CustomerGoogleLoginView.as_view(), name="customer-google-login"),
+    path("customer/me/", CustomerMeView.as_view(), name="customer-me"),
 
     # COMPANY RATING ROUTE
     path(

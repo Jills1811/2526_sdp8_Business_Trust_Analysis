@@ -38,7 +38,14 @@ export default function CompanyPublicDetail() {
     const fetchCompany = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${BASE_URL}/api/company/${companyId}/`);
+        const token = getCustomerToken();
+        const res = await fetch(`${BASE_URL}/api/company/${companyId}/`, {
+          headers: token
+            ? {
+                Authorization: `Token ${token}`,
+              }
+            : {},
+        });
         if (!res.ok) {
           throw new Error("Failed to fetch company details");
         }

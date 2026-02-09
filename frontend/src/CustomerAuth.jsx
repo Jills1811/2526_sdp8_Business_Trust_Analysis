@@ -56,6 +56,7 @@ export function CustomerSignupPage() {
     password: "",
     first_name: "",
     last_name: "",
+    location: "",
   });
 
   const [signupStatus, setSignupStatus] = useState(null);
@@ -180,6 +181,12 @@ export function CustomerSignupPage() {
             },
             { label: "First Name", name: "first_name", type: "text" },
             { label: "Last Name", name: "last_name", type: "text" },
+            {
+              label: "Location (city / area)",
+              name: "location",
+              type: "text",
+              required: false,
+            },
           ].map((field) => (
             <div key={field.name} style={{ marginBottom: "0.75rem" }}>
               <label
