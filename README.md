@@ -103,7 +103,8 @@ Implemented Login and Sign-Up functionality using Google Authentication.
 
 Improved chatbot functionality to handle random user queries and general interactions more effectively.
 
+**-->Lab7_09-02-2026**
 
+**Summary**
 
-
-
+Implemented the recommendation part. Users can see recommended part based on recently_viewed and search history.
