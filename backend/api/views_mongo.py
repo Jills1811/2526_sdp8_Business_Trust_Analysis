@@ -31,6 +31,7 @@ from .db_mongo import (
     comments_collection,
     search_history_collection,
 )
+from .recommendation_engine import recommend_businesses_ml
 
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
@@ -1142,11 +1143,12 @@ class RecommendationsView(APIView):
     """
     GET /api/company/recommendations/
 
-    Personalized recommendation scoring with priorities:
-    - Recently viewed businesses (40%)
-    - Search history (30%)
-    - User location (20%)
-    - Business reputation (10%)
+    ML-powered personalized recommendations:
+    - User-user collaborative filtering: "similar users liked this business" (e.g. User1
+      interested in Dairy A → recommend Dairy A to User2 who is also into dairy but
+      hasn't seen Dairy A). Uses ratings, recently_viewed, search history, location.
+    - Falls back to content-based (recently viewed, search history, location, reputation)
+      when no similar users or to fill remaining slots.
     """
 
     authentication_classes = []
@@ -1186,6 +1188,12 @@ class RecommendationsView(APIView):
         if not candidate_docs:
             return Response({"recommendations": []})
 
+        # Build id -> doc map for candidates
+        candidate_by_id = {}
+        for doc in candidate_docs:
+            cid = doc.get("company_id") or str(doc.get("_id"))
+            candidate_by_id[cid] = doc
+
         # Try to get the authenticated customer for personalization
         customer = _get_auth_user(request, user_type="customer")
 
@@ -1214,93 +1222,108 @@ class RecommendationsView(APIView):
 
         user_id = str(customer["_id"])
 
-        # Load customer profile (location + recently_viewed)
-        customer_profile = customers_collection.find_one({"user_id": user_id}) or {}
-        customer_location = (customer_profile.get("location") or "").lower()
-        recently_viewed = customer_profile.get("recently_viewed", []) or []
+        # ---- ML: similar-users recommendation (businesses similar users liked that this user hasn't seen) ----
+        candidate_ids = list(candidate_by_id.keys())
+        try:
+            ml_recs = recommend_businesses_ml(
+                current_user_id=user_id,
+                ratings_collection=ratings_collection,
+                search_history_collection=search_history_collection,
+                customers_collection=customers_collection,
+                companies_collection=companies_collection,
+                limit=limit,
+                candidate_company_ids=candidate_ids,
+                base_query=base_query,
+            )
+        except Exception:
+            ml_recs = []
 
-        # Compute recency-based weights for recently viewed companies
-        recently_weight_map = {}  # company_id -> 0..1
-        if recently_viewed:
-            n = len(recently_viewed)
-            for idx, cid in enumerate(recently_viewed):
-                # Most recent gets weight ~1, older decay linearly
-                recently_weight_map[cid] = (n - idx) / float(n)
-
-        # Determine the category of the last viewed company for an extra boost
-        last_viewed_category = None
-        if recently_viewed:
-            last_id = recently_viewed[0]
-            last_doc = companies_collection.find_one(
-                {"company_id": last_id}
-            ) or companies_collection.find_one({"_id": ObjectId(last_id)})
-            if last_doc:
-                last_viewed_category = (last_doc.get("category") or "").lower()
-
-        # Build category preferences from search history
-        category_interest = {}  # category -> score
-        history_cursor = (
-            search_history_collection.find({"user_id": user_id})
-            .sort("timestamp", -1)
-            .limit(100)
-        )
-        for idx, sh in enumerate(history_cursor):
-            cat = (sh.get("category") or "").strip().lower()
-            if not cat:
+        # Build response: ML results first (with full company fields)
+        recommendations = []
+        used_ids = set()
+        for item in ml_recs:
+            cid = item.get("company_id")
+            if not cid or cid in used_ids or cid not in candidate_by_id:
                 continue
-            # More recent entries get slightly higher weight
-            weight = 1.0 / (1.0 + idx)
-            category_interest[cat] = category_interest.get(cat, 0.0) + weight
-
-        # Normalize search category scores to 0..1
-        if category_interest:
-            max_cat_score = max(category_interest.values())
-            if max_cat_score > 0:
-                for k in list(category_interest.keys()):
-                    category_interest[k] = category_interest[k] / max_cat_score
-
-        # Now score each candidate
-        scored = []
-        for doc in candidate_docs:
-            company_id = doc.get("company_id") or str(doc.get("_id"))
-            category = (doc.get("category") or "").lower()
-            city = (doc.get("city") or "").lower()
-            country = (doc.get("country") or "").lower()
-
-            # Recently viewed component (0-1)
-            rv_score = recently_weight_map.get(company_id, 0.0)
-
-            # Search history component (0-1) based on category preference
-            sh_score = category_interest.get(category, 0.0)
-
-            # Location component (0-1)
-            loc_score = 0.0
-            if customer_location:
-                if city and city in customer_location or customer_location in city:
-                    loc_score = 1.0
-                elif country and country in customer_location or customer_location in country:
-                    loc_score = 0.7
-
-            # Reputation component (0-1)
+            used_ids.add(cid)
+            doc = candidate_by_id[cid]
             reputation_score = doc.get("reputation_score")
             if reputation_score is None or reputation_score == 0.0:
-                reputation_score = calculate_reputation_score(company_id)
-            rep_norm = max(0.0, min(1.0, float(reputation_score or 0.0) / 100.0))
+                reputation_score = calculate_reputation_score(cid)
+            recommendations.append({
+                "id": cid,
+                "name": doc.get("name", ""),
+                "category": doc.get("category", ""),
+                "city": doc.get("city", ""),
+                "country": doc.get("country", ""),
+                "average_rating": float(doc.get("average_rating", 0.0)),
+                "total_reviews": int(doc.get("total_reviews", 0)),
+                "reputation_score": float(reputation_score or 0.0),
+                "score": round(float(item.get("score", 0)) * 100.0, 2),
+            })
 
-            # Weighted sum
-            base_score = (
-                0.4 * rv_score
-                + 0.3 * sh_score
-                + 0.2 * loc_score
-                + 0.1 * rep_norm
-            )
+        # ---- Fill remaining slots with content-based (recently viewed, search history, location, reputation) ----
+        if len(recommendations) < limit:
+            customer_profile = customers_collection.find_one({"user_id": user_id}) or {}
+            customer_location = (customer_profile.get("location") or "").lower()
+            recently_viewed = customer_profile.get("recently_viewed", []) or []
 
-            # Extra boost if category matches the last viewed company's category
-            if last_viewed_category and category == last_viewed_category:
-                base_score += 0.05
+            recently_weight_map = {}
+            if recently_viewed:
+                n = len(recently_viewed)
+                for idx, cid in enumerate(recently_viewed):
+                    recently_weight_map[str(cid)] = (n - idx) / float(n)
 
-            scored.append(
-                {
+            last_viewed_category = None
+            if recently_viewed:
+                last_id = recently_viewed[0]
+                last_doc = companies_collection.find_one({"company_id": last_id}) or companies_collection.find_one({"_id": ObjectId(last_id)})
+                if last_doc:
+                    last_viewed_category = (last_doc.get("category") or "").lower()
+
+            category_interest = {}
+            for idx, sh in enumerate(search_history_collection.find({"user_id": user_id}).sort("timestamp", -1).limit(100)):
+                cat = (sh.get("category") or "").strip().lower()
+                if cat:
+                    category_interest[cat] = category_interest.get(cat, 0.0) + 1.0 / (1.0 + idx)
+            if category_interest:
+                max_cat = max(category_interest.values())
+                if max_cat > 0:
+                    category_interest = {k: v / max_cat for k, v in category_interest.items()}
+
+            # Score only candidates not already in recommendations
+            fallback_docs = [d for d in candidate_docs if (d.get("company_id") or str(d.get("_id"))) not in used_ids]
+            scored = []
+            for doc in fallback_docs:
+                company_id = doc.get("company_id") or str(doc.get("_id"))
+                category = (doc.get("category") or "").lower()
+                city = (doc.get("city") or "").lower()
+                country = (doc.get("country") or "").lower()
+
+                rv_score = recently_weight_map.get(company_id, 0.0)
+                sh_score = category_interest.get(category, 0.0)
+                loc_score = 0.0
+                if customer_location:
+                    if city and (city in customer_location or customer_location in city):
+                        loc_score = 1.0
+                    elif country and (country in customer_location or customer_location in country):
+                        loc_score = 0.7
+
+                reputation_score = doc.get("reputation_score")
+                if reputation_score is None or reputation_score == 0.0:
+                    reputation_score = calculate_reputation_score(company_id)
+                rep_norm = max(0.0, min(1.0, float(reputation_score or 0.0) / 100.0))
+
+                base_score = 0.4 * rv_score + 0.3 * sh_score + 0.2 * loc_score + 0.1 * rep_norm
+                if last_viewed_category and category == last_viewed_category:
+                    base_score += 0.05
+
+                scored.append((doc, company_id, base_score, reputation_score))
+
+            scored.sort(key=lambda x: x[2], reverse=True)
+            need = limit - len(recommendations)
+            for doc, company_id, base_score, reputation_score in scored[:need]:
+                recommendations.append({
                     "id": company_id,
                     "name": doc.get("name", ""),
                     "category": doc.get("category", ""),
@@ -1309,13 +1332,10 @@ class RecommendationsView(APIView):
                     "average_rating": float(doc.get("average_rating", 0.0)),
                     "total_reviews": int(doc.get("total_reviews", 0)),
                     "reputation_score": float(reputation_score or 0.0),
-                    "score": round(base_score * 100.0, 2),  # for debugging / UI
-                }
-            )
+                    "score": round(base_score * 100.0, 2),
+                })
 
-        # Sort by score descending and take top 10
-        scored.sort(key=lambda x: x["score"], reverse=True)
-        return Response({"recommendations": scored[:limit]})
+        return Response({"recommendations": recommendations[:limit]})
 
 
 class CompanyMeView(APIView):

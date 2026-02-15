@@ -49,6 +49,10 @@ def setup_indexes():
             tokens_collection.create_index("token", unique=True)
         except Exception:
             pass
+        try:
+            search_history_collection.create_index([("user_id", 1), ("timestamp", -1)])
+        except Exception:
+            pass
     except Exception:
         pass  # Fail silently if indexes can't be created
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import { CompanySignupPage, CompanyLoginPage, CompanyHomePage } from "./CompanyAuth";
 import { CustomerSignupPage, CustomerLoginPage, CustomerHomePage } from "./CustomerAuth";
 import BusinessDashboard from "./BusinessDashboard";
@@ -15,68 +15,16 @@ import {
   CompanyAnalyticsPage,
 } from "./CompanyAnalytics";
 import CustomerProfile from "./CustomerProfile";
+import LandingLogin from "./LandingLogin";
 
 function HomePage() {
-  return (
-    <div
-      style={{
-        minHeight: "calc(100vh - 64px)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "1rem",
-        background: "#f3f4f6",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
-    >
-      <h1 style={{ margin: 0 }}>Business Trust Platform</h1>
-      <p style={{ color: "#4b5563", margin: 0 }}>
-        Continue as guest or access company features.
-      </p>
-      <div
-        style={{
-          display: "flex",
-          gap: "0.75rem",
-          marginTop: "0.5rem",
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
-      >
-        <Link to="/company/signup">
-          <button className="btn btn-primary">Company Signup</button>
-        </Link>
-        <Link to="/company/login">
-          <button className="btn btn-outline">Company Login</button>
-        </Link>
-        <Link to="/customer/signup">
-          <button className="btn btn-primary" style={{ background: "#7c3aed" }}>
-            Customer Signup
-          </button>
-        </Link>
-        <Link to="/customer/login">
-          <button
-            className="btn btn-outline"
-            style={{ borderColor: "#f59e0b", color: "#f59e0b" }}
-          >
-            Customer Login
-          </button>
-        </Link>
-        <Link to="/dashboard">
-          {/* <button
-            className="btn btn-outline"
-            style={{ borderColor: "#2563eb", color: "#2563eb" }}
-          >
-            Business Dashboard
-          </button> */}
-        </Link>
-      </div>
-    </div>
-  );
+  return <LandingLogin />;
 }
 
 function NavBar({ isLoggedIn, isCompanyLoggedIn, isCustomerLoggedIn, onLogout }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isLoginPage = location.pathname === "/";
 
   const handleLogout = () => {
     onLogout();
@@ -98,30 +46,32 @@ function NavBar({ isLoggedIn, isCompanyLoggedIn, isCustomerLoggedIn, onLogout })
           Business Trust
         </Link>
       </div>
-      <div className="navbar__links">
-        {isCustomerLoggedIn && (
-          <>
-            <Link to="/search">Search</Link>
-            <Link to="/top">Top</Link>
-            <Link to="/recommendations">Recommendations</Link>
-            <Link to="/customer/profile">Profile</Link>
-          </>
-        )}
-        {isCompanyLoggedIn && (
-          <>
-            <Link to="/dashboard">Dashboard</Link>
-            <Link to="/company/profile">Profile</Link>
-            <Link to="/company/feedback">Feedback/Review</Link>
-            <Link to="/company/recommendation">Recommendation</Link>
-            <Link to="/company/analytics">Analytics</Link>
-          </>
-        )}
-        {isLoggedIn && (
-          <button className="btn btn-outline" onClick={handleLogout}>
-            Log out
-          </button>
-        )}
-      </div>
+      {!isLoginPage && (
+        <div className="navbar__links">
+          {isCustomerLoggedIn && (
+            <>
+              <Link to="/search">Search</Link>
+              <Link to="/top">Top</Link>
+              <Link to="/recommendations">Recommendations</Link>
+              <Link to="/customer/profile">Profile</Link>
+            </>
+          )}
+          {isCompanyLoggedIn && (
+            <>
+              <Link to="/dashboard">Dashboard</Link>
+              <Link to="/company/profile">Profile</Link>
+              <Link to="/company/feedback">Feedback/Review</Link>
+              <Link to="/company/recommendation">Recommendation</Link>
+              <Link to="/company/analytics">Analytics</Link>
+            </>
+          )}
+          {isLoggedIn && (
+            <button className="btn btn-outline" onClick={handleLogout}>
+              Log out
+            </button>
+          )}
+        </div>
+      )}
     </nav>
   );
 }
@@ -157,11 +107,21 @@ function App() {
     setIsLoggedIn(false);
   };
 
+  const publicUrl = process.env.PUBLIC_URL || "";
+  const appBgImage = isLoggedIn ? `${publicUrl}/i3.png` : `${publicUrl}/i1.webp`;
+  const bgFixedClass = isLoggedIn ? " app-main__bg--fixed" : "";
+
   return (
     <Router>
       <div className="app-shell">
         <NavBar isLoggedIn={isLoggedIn} isCompanyLoggedIn={isCompanyLoggedIn} isCustomerLoggedIn={isCustomerLoggedIn} onLogout={handleLogout} />
         <main className="app-main">
+          <div
+            className={`app-main__bg${bgFixedClass}`}
+            aria-hidden="true"
+            style={{ backgroundImage: `url(${appBgImage})` }}
+          />
+          <div className="app-main__content">
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/search" element={<BusinessSearch />} />
@@ -187,6 +147,7 @@ function App() {
             <Route path="/dashboard" element={<BusinessDashboard />} />
             <Route path="/companies/:companyId" element={<CompanyPublicDetail />} />
           </Routes>
+          </div>
         </main>
       </div>
     </Router>

@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const BASE_URL = "http://localhost:8000";
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "";
 
-function saveCustomerToken(token) {
+export function saveCustomerToken(token) {
   localStorage.setItem("customerToken", token);
   try { window.dispatchEvent(new Event("auth-changed")); } catch {}
 }
@@ -489,7 +489,14 @@ export function CustomerHomePage() {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
+  const [recLoading, setRecLoading] = useState(true);
+  const [recExpanded, setRecExpanded] = useState(false);
   const navigate = useNavigate();
+
+  const REC_INITIAL = 4;
+  const displayedRec = recExpanded ? recommendations : recommendations.slice(0, REC_INITIAL);
+  const hasMoreRec = recommendations.length > REC_INITIAL;
 
   useEffect(() => {
     const stored = localStorage.getItem("customerData");
@@ -500,6 +507,25 @@ export function CustomerHomePage() {
         setCustomer(null);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const loadRecommendations = async () => {
+      setRecLoading(true);
+      const url = `${BASE_URL}/api/company/recommendations/`;
+      try {
+        const token = getCustomerToken();
+        const headers = token ? { Authorization: `Token ${token}` } : {};
+        const res = await fetch(url, { headers });
+        const json = await res.json();
+        setRecommendations(Array.isArray(json.recommendations) ? json.recommendations : []);
+      } catch {
+        setRecommendations([]);
+      } finally {
+        setRecLoading(false);
+      }
+    };
+    loadRecommendations();
   }, []);
 
   useEffect(() => {
@@ -577,6 +603,92 @@ export function CustomerHomePage() {
           >
             Switch account
           </button>
+        </div>
+
+        <div
+          style={{
+            background: "#ffffff",
+            padding: "1.5rem",
+            borderRadius: "0.75rem",
+            boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+            marginBottom: "2rem",
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+            Recommended for you
+          </h3>
+          <p style={{ margin: "0 0 1rem", color: "#4b5563", fontSize: "0.9rem" }}>
+            Personalized recommendations based on your recent views, search activity, location, and business reputation.
+          </p>
+          {recLoading ? (
+            <p style={{ color: "#6b7280" }}>Loading recommendations...</p>
+          ) : recommendations.length === 0 ? (
+            <p style={{ color: "#6b7280" }}>No recommendations yet. Search and view businesses to get personalized suggestions.</p>
+          ) : (
+            <>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                  gap: "0.75rem",
+                }}
+              >
+                {displayedRec.map((c) => (
+                  <div
+                    key={c.id}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "0.5rem",
+                      padding: "1rem",
+                      background: "#fff",
+                      boxShadow: "none",
+                    }}
+                  >
+                    <p style={{ margin: 0, color: "#6b7280", fontSize: "0.85rem" }}>{c.category}</p>
+                    <h4 style={{ margin: "0.15rem 0 0.25rem" }}>{c.name}</h4>
+                    {c.city && c.country && (
+                      <p style={{ margin: 0, color: "#4b5563", fontSize: "0.9rem" }}>📍 {c.city}, {c.country}</p>
+                    )}
+                    <p style={{ margin: "0.35rem 0 0", color: "#15803d", fontWeight: 600, fontSize: "0.9rem" }}>
+                      Reputation: {(c.reputation_score ?? 0).toFixed(1)} / 100
+                    </p>
+                    <p style={{ margin: 0, color: "#1d4ed8", fontSize: "0.9rem" }}>
+                      Rating: {(c.average_rating ?? 0).toFixed(1)} / 5.0
+                    </p>
+                    <Link to={`/companies/${c.id}`}>
+                      <button className="btn btn-outline" style={{ marginTop: "0.5rem" }}>View</button>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+              {hasMoreRec && (
+                <div style={{ textAlign: "center", marginTop: "1.25rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setRecExpanded((e) => !e)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.6rem 1.25rem",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "0.5rem",
+                      background: "#f9fafb",
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                      color: "#374151",
+                    }}
+                  >
+                    {recExpanded ? (
+                      <>Show less <span style={{ fontSize: "0.75rem" }}>▲</span></>
+                    ) : (
+                      <>Show more ({recommendations.length - REC_INITIAL} more) <span style={{ fontSize: "0.75rem" }}>▼</span></>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div

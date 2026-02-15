@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 const BASE_URL = "http://localhost:8000"; // change if your backend runs elsewhere
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "";
 
-function saveToken(token) {
+export function saveToken(token) {
   localStorage.setItem("companyToken", token);
   try { window.dispatchEvent(new Event("auth-changed")); } catch {}
 }
