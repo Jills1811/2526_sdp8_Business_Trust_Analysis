@@ -1143,12 +1143,13 @@ class RecommendationsView(APIView):
     """
     GET /api/company/recommendations/
 
-    ML-powered personalized recommendations:
-    - User-user collaborative filtering: "similar users liked this business" (e.g. User1
-      interested in Dairy A → recommend Dairy A to User2 who is also into dairy but
-      hasn't seen Dairy A). Uses ratings, recently_viewed, search history, location.
-    - Falls back to content-based (recently viewed, search history, location, reputation)
-      when no similar users or to fill remaining slots.
+    Personalized recommendations with a fixed split (for limit=10):
+    - First 3: primarily based on the logged-in customer's own search history (categories)
+      plus location and business reputation.
+    - Second 3: primarily based on the customer's recently viewed businesses plus
+      location and reputation.
+    - Last 4: based on similar users (user-user collaborative filtering: "other users
+      like you also liked this business"), using ratings, search history, and location.
     """
 
     authentication_classes = []
@@ -1222,48 +1223,60 @@ class RecommendationsView(APIView):
 
         user_id = str(customer["_id"])
 
-        # ---- ML: similar-users recommendation (businesses similar users liked that this user hasn't seen) ----
-        candidate_ids = list(candidate_by_id.keys())
-        try:
-            ml_recs = recommend_businesses_ml(
-                current_user_id=user_id,
-                ratings_collection=ratings_collection,
-                search_history_collection=search_history_collection,
-                customers_collection=customers_collection,
-                companies_collection=companies_collection,
-                limit=limit,
-                candidate_company_ids=candidate_ids,
-                base_query=base_query,
-            )
-        except Exception:
-            ml_recs = []
-
-        # Build response: ML results first (with full company fields)
+        # First N (up to 6) slots are reserved for the customer's own signals
         recommendations = []
         used_ids = set()
-        for item in ml_recs:
-            cid = item.get("company_id")
-            if not cid or cid in used_ids or cid not in candidate_by_id:
-                continue
-            used_ids.add(cid)
-            doc = candidate_by_id[cid]
-            reputation_score = doc.get("reputation_score")
-            if reputation_score is None or reputation_score == 0.0:
-                reputation_score = calculate_reputation_score(cid)
-            recommendations.append({
-                "id": cid,
-                "name": doc.get("name", ""),
-                "category": doc.get("category", ""),
-                "city": doc.get("city", ""),
-                "country": doc.get("country", ""),
-                "average_rating": float(doc.get("average_rating", 0.0)),
-                "total_reviews": int(doc.get("total_reviews", 0)),
-                "reputation_score": float(reputation_score or 0.0),
-                "score": round(float(item.get("score", 0)) * 100.0, 2),
-            })
+        own_limit = min(6, limit)
 
-        # ---- Fill remaining slots with content-based (recently viewed, search history, location, reputation) ----
-        if len(recommendations) < limit:
+        # ---- CASE A: when searching by business name (q_filter), use ONLY name match for the first slots ----
+        if q_filter:
+            search_term = q_filter.lower()
+
+            def _name_match_score(name: str) -> float:
+                n = (name or "").lower()
+                if not search_term or search_term not in n:
+                    return 0.0
+                if n == search_term:
+                    return 3.0
+                if n.startswith(search_term):
+                    return 2.0
+                return 1.0
+
+            name_scored = []
+            for doc in candidate_docs:
+                name = doc.get("name", "")
+                name_score = _name_match_score(name)
+                if name_score <= 0.0:
+                    continue  # only keep businesses whose name matches the query
+                company_id = doc.get("company_id") or str(doc.get("_id"))
+                reputation_score = doc.get("reputation_score")
+                if reputation_score is None or reputation_score == 0.0:
+                    reputation_score = calculate_reputation_score(company_id)
+                name_scored.append(
+                    (doc, company_id, name_score, float(reputation_score or 0.0))
+                )
+
+            # sort: primary by name match, secondary by reputation
+            name_scored.sort(key=lambda x: (x[2], x[3]), reverse=True)
+
+            for doc, company_id, name_score, reputation_score in name_scored[:own_limit]:
+                used_ids.add(company_id)
+                recommendations.append(
+                    {
+                        "id": company_id,
+                        "name": doc.get("name", ""),
+                        "category": doc.get("category", ""),
+                        "city": doc.get("city", ""),
+                        "country": doc.get("country", ""),
+                        "average_rating": float(doc.get("average_rating", 0.0)),
+                        "total_reviews": int(doc.get("total_reviews", 0)),
+                        "reputation_score": float(reputation_score or 0.0),
+                        "score": round(name_score * 100.0, 2),
+                    }
+                )
+
+        # ---- CASE B: no name search, use a fixed split from the current user's behaviour for the first slots ----
+        if not q_filter and own_limit > 0:
             customer_profile = customers_collection.find_one({"user_id": user_id}) or {}
             customer_location = (customer_profile.get("location") or "").lower()
             recently_viewed = customer_profile.get("recently_viewed", []) or []
@@ -1277,36 +1290,67 @@ class RecommendationsView(APIView):
             last_viewed_category = None
             if recently_viewed:
                 last_id = recently_viewed[0]
-                last_doc = companies_collection.find_one({"company_id": last_id}) or companies_collection.find_one({"_id": ObjectId(last_id)})
+                last_doc = companies_collection.find_one({"company_id": last_id}) or companies_collection.find_one(
+                    {"_id": ObjectId(last_id)}
+                )
                 if last_doc:
                     last_viewed_category = (last_doc.get("category") or "").lower()
 
             category_interest = {}
-            for idx, sh in enumerate(search_history_collection.find({"user_id": user_id}).sort("timestamp", -1).limit(100)):
+            search_terms = {}
+            for idx, sh in enumerate(
+                search_history_collection.find({"user_id": user_id})
+                .sort("timestamp", -1)
+                .limit(100)
+            ):
+                decay = 1.0 / (1.0 + idx)
+
+                # Category-based interest (for category filters, e.g. "dairy")
                 cat = (sh.get("category") or "").strip().lower()
                 if cat:
-                    category_interest[cat] = category_interest.get(cat, 0.0) + 1.0 / (1.0 + idx)
+                    category_interest[cat] = category_interest.get(cat, 0.0) + decay
+                    search_terms[cat] = search_terms.get(cat, 0.0) + decay
+
+                # Name/query-based interest (e.g. user searched "shreeji")
+                q_txt = (sh.get("query") or "").strip().lower()
+                if q_txt:
+                    search_terms[q_txt] = search_terms.get(q_txt, 0.0) + decay
             if category_interest:
                 max_cat = max(category_interest.values())
                 if max_cat > 0:
-                    category_interest = {k: v / max_cat for k, v in category_interest.items()}
+                    category_interest = {
+                        k: v / max_cat for k, v in category_interest.items()
+                    }
 
-            # Score only candidates not already in recommendations
-            fallback_docs = [d for d in candidate_docs if (d.get("company_id") or str(d.get("_id"))) not in used_ids]
-            scored = []
-            for doc in fallback_docs:
+            # Precompute per-candidate signals once
+            per_doc = []
+            for doc in candidate_docs:
                 company_id = doc.get("company_id") or str(doc.get("_id"))
                 category = (doc.get("category") or "").lower()
                 city = (doc.get("city") or "").lower()
                 country = (doc.get("country") or "").lower()
+                name_norm = (doc.get("name") or "").strip().lower()
 
                 rv_score = recently_weight_map.get(company_id, 0.0)
-                sh_score = category_interest.get(category, 0.0)
+
+                # Search-history score: combine category match + fuzzy match on name/category
+                sh_score_cat = category_interest.get(category, 0.0)
+                sh_score_name = 0.0
+                if search_terms:
+                    for term, weight in search_terms.items():
+                        if not term:
+                            continue
+                        if term in name_norm or term in category:
+                            if float(weight) > sh_score_name:
+                                sh_score_name = float(weight)
+                sh_score = max(sh_score_cat, sh_score_name)
                 loc_score = 0.0
                 if customer_location:
                     if city and (city in customer_location or customer_location in city):
                         loc_score = 1.0
-                    elif country and (country in customer_location or customer_location in country):
+                    elif country and (
+                        country in customer_location or customer_location in country
+                    ):
                         loc_score = 0.7
 
                 reputation_score = doc.get("reputation_score")
@@ -1314,17 +1358,132 @@ class RecommendationsView(APIView):
                     reputation_score = calculate_reputation_score(company_id)
                 rep_norm = max(0.0, min(1.0, float(reputation_score or 0.0) / 100.0))
 
-                base_score = 0.4 * rv_score + 0.3 * sh_score + 0.2 * loc_score + 0.1 * rep_norm
+                base_score = (
+                    0.4 * rv_score
+                    + 0.3 * sh_score
+                    + 0.2 * loc_score
+                    + 0.1 * rep_norm
+                )
                 if last_viewed_category and category == last_viewed_category:
                     base_score += 0.05
 
-                scored.append((doc, company_id, base_score, reputation_score))
+                per_doc.append(
+                    {
+                        "doc": doc,
+                        "company_id": company_id,
+                        "category": category,
+                        "rv_score": rv_score,
+                        "sh_score": sh_score,
+                        "loc_score": loc_score,
+                        "reputation_score": reputation_score,
+                        "rep_norm": rep_norm,
+                        "base_score": base_score,
+                    }
+                )
 
-            scored.sort(key=lambda x: x[2], reverse=True)
-            need = limit - len(recommendations)
-            for doc, company_id, base_score, reputation_score in scored[:need]:
-                recommendations.append({
-                    "id": company_id,
+            # Split the 6 "own behaviour" slots:
+            # - first 3: search-history driven
+            # - next 3: recently-viewed driven
+            search_quota = min(3, own_limit)
+            recent_quota = min(3, max(0, own_limit - search_quota))
+
+            # First 3: prioritize businesses whose category matches search history
+            search_candidates = [x for x in per_doc if x["sh_score"] > 0.0]
+            search_candidates.sort(
+                key=lambda x: (x["sh_score"], x["base_score"]), reverse=True
+            )
+            for item in search_candidates:
+                if len(recommendations) >= search_quota:
+                    break
+                cid = item["company_id"]
+                if cid in used_ids:
+                    continue
+                doc = item["doc"]
+                used_ids.add(cid)
+                recommendations.append(
+                    {
+                        "id": cid,
+                        "name": doc.get("name", ""),
+                        "category": doc.get("category", ""),
+                        "city": doc.get("city", ""),
+                        "country": doc.get("country", ""),
+                        "average_rating": float(doc.get("average_rating", 0.0)),
+                        "total_reviews": int(doc.get("total_reviews", 0)),
+                        "reputation_score": float(item["reputation_score"] or 0.0),
+                        "score": round(item["base_score"] * 100.0, 2),
+                    }
+                )
+
+            # Next 3: prioritize businesses strongly connected to recently viewed list
+            recent_candidates = [
+                x for x in per_doc if x["rv_score"] > 0.0 and x["company_id"] not in used_ids
+            ]
+            recent_candidates.sort(
+                key=lambda x: (x["rv_score"], x["base_score"]), reverse=True
+            )
+            added_recent = 0
+            for item in recent_candidates:
+                if added_recent >= recent_quota:
+                    break
+                cid = item["company_id"]
+                if cid in used_ids:
+                    continue
+                doc = item["doc"]
+                used_ids.add(cid)
+                recommendations.append(
+                    {
+                        "id": cid,
+                        "name": doc.get("name", ""),
+                        "category": doc.get("category", ""),
+                        "city": doc.get("city", ""),
+                        "country": doc.get("country", ""),
+                        "average_rating": float(doc.get("average_rating", 0.0)),
+                        "total_reviews": int(doc.get("total_reviews", 0)),
+                        "reputation_score": float(item["reputation_score"] or 0.0),
+                        "score": round(item["base_score"] * 100.0, 2),
+                    }
+                )
+                added_recent += 1
+
+        # ---- STEP 2: when searching by name, return ONLY name-based results ----
+        if q_filter:
+            # Only businesses whose name matches the search term are returned,
+            # capped to the first 6 (or the requested limit, whichever is smaller).
+            return Response(
+                {"recommendations": recommendations[: min(limit, own_limit)]}
+            )
+
+        # ---- STEP 3: fill remaining slots with similar-users ML recommendations (no name search) ----
+        remaining = max(0, limit - len(recommendations))
+        ml_recs = []
+        if remaining > 0:
+            candidate_ids = list(candidate_by_id.keys())
+            try:
+                ml_recs = recommend_businesses_ml(
+                    current_user_id=user_id,
+                    ratings_collection=ratings_collection,
+                    search_history_collection=search_history_collection,
+                    customers_collection=customers_collection,
+                    companies_collection=companies_collection,
+                    limit=remaining,
+                    candidate_company_ids=candidate_ids,
+                    base_query=base_query,
+                )
+            except Exception:
+                ml_recs = []
+
+        for item in ml_recs:
+            cid = item.get("company_id")
+            if not cid or cid in used_ids or cid not in candidate_by_id:
+                continue
+            used_ids.add(cid)
+            doc = candidate_by_id[cid]
+            reputation_score = doc.get("reputation_score")
+            if reputation_score is None or reputation_score == 0.0:
+                reputation_score = calculate_reputation_score(cid)
+            recommendations.append(
+                {
+                    "id": cid,
                     "name": doc.get("name", ""),
                     "category": doc.get("category", ""),
                     "city": doc.get("city", ""),
@@ -1332,8 +1491,9 @@ class RecommendationsView(APIView):
                     "average_rating": float(doc.get("average_rating", 0.0)),
                     "total_reviews": int(doc.get("total_reviews", 0)),
                     "reputation_score": float(reputation_score or 0.0),
-                    "score": round(base_score * 100.0, 2),
-                })
+                    "score": round(float(item.get("score", 0)) * 100.0, 2),
+                }
+            )
 
         return Response({"recommendations": recommendations[:limit]})
 

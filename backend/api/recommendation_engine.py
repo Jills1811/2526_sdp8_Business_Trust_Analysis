@@ -161,7 +161,7 @@ def get_similar_users(
         loc_bonus = 0.2 if (cur_location and other_loc and (cur_location in other_loc or other_loc in cur_location)) else 0.0
 
         # Combined similarity
-        sim = 0.5 * jaccard_b + 0.4 * cat_sim + loc_bonus
+        sim = 0.01 * jaccard_b + 0.4 * cat_sim + loc_bonus
         if sim > 0:
             scores.append((uid, sim))
 
