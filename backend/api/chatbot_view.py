@@ -4,11 +4,18 @@ Rule-based, deterministic, business-scoped.
 NO hallucination. NO AI guessing.
 """
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
+import os
 import re
+
+import requests
+from langdetect import detect, LangDetectException
 from bson import ObjectId
 from dotenv import load_dotenv
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from deep_translator import GoogleTranslator
+
+
 from .db_mongo import companies_collection
 
 # ----------------------------------------------------
@@ -16,11 +23,17 @@ from .db_mongo import companies_collection
 # ----------------------------------------------------
 load_dotenv()
 
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "tinyllama")
+OLLAMA_TRANSLATION_MODEL = os.getenv("OLLAMA_TRANSLATION_MODEL", "phi3:mini")
+
+
 # ----------------------------------------------------
-# HELPERS
+# HELPER – NORMALIZATION
 # ----------------------------------------------------
 def normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", "", text.lower()).strip()
+
 
 def normalize_list(value):
     if isinstance(value, list):
@@ -29,21 +42,97 @@ def normalize_list(value):
         return [v.strip() for v in value.split(",") if v.strip()]
     return []
 
+
 def extract_weekday(msg):
     days = [
-        "monday", "tuesday", "wednesday",
-        "thursday", "friday", "saturday", "sunday"
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
     ]
     for d in days:
         if d in msg:
             return d.capitalize()
     return None
 
+
 def extract_city(msg, known_cities):
     for city in known_cities:
         if city.lower() in msg:
             return city.capitalize()
     return None
+
+
+# ----------------------------------------------------
+# MULTILINGUAL HELPERS (OLLAMA-BASED)
+# ----------------------------------------------------
+LANGUAGE_CODE_MAP = {
+    "en": "English",
+    "gu": "Gujarati",
+    "hi": "Hindi",
+    "fr": "French",
+    "es": "Spanish",
+    "de": "German",
+    "ta": "Tamil",
+    "mr": "Marathi",
+}
+
+
+def detect_language(text: str) -> str:
+    if not text:
+        return "en"
+    try:
+        return detect(text)
+    except:
+        return "en"
+
+
+def translate_to_english(text: str) -> str:
+    if not text:
+        return text
+    try:
+        return GoogleTranslator(source='auto', target='en').translate(text)
+    except Exception as e:
+        print("Translation to English failed:", e)
+        return text
+
+
+
+def translate_from_english(text: str, target_lang: str) -> str:
+    if not text or target_lang.lower() == "en":
+        return text
+
+    # Force ISO codes explicitly
+    lang_map = {
+        "gu": "gu",
+        "hi": "hi",
+        "mr": "mr",
+        "ta": "ta",
+        "fr": "fr",
+        "de": "de",
+        "es": "es",
+    }
+
+    target = lang_map.get(target_lang.lower())
+
+    if not target:
+        return text  # unsupported language → fallback to English
+
+    try:
+        translated = GoogleTranslator(source="en", target=target).translate(text)
+        print("Translated Output:", translated)
+        return translated
+    except Exception as e:
+        print("Translation from English failed:", e)
+        return text
+
+
+
+
+
 
 # ----------------------------------------------------
 # API VIEW
@@ -86,8 +175,9 @@ class BusinessChatbotView(APIView):
         # ------------------------------------------------
         # 2️⃣ BUSINESS NAME
         # ------------------------------------------------
-        if any(k in msg for k in ["business name", "company name", "shop name", "your name"]):
-            return f"Our business name is {name}.", "name", {"name": name}
+        if any(k in msg for k in ["name", "called", "call"]):
+            if any(k in msg for k in ["shop", "business", "company", "store"]):
+                return f"Our business name is {name}.", "name", {"name": name}
 
         # ------------------------------------------------
         # 3️⃣ OPENING TIME ONLY
@@ -248,25 +338,55 @@ class BusinessChatbotView(APIView):
         if not company:
             return Response({"detail": "Company not found"}, status=404)
 
-        message = request.data.get("message", "").strip()
-        if not message:
+        original_message = request.data.get("message", "").strip()
+        if not original_message:
             return Response({"detail": "Message is required"}, status=400)
 
-        rule = self._rule_based_response(company, message)
+        # 1) Detect language of the original message
+        language = detect_language(original_message)
+        print("Detected language:", language)
+
+        # 2) Translate to English if needed (chatbot logic stays English-only)
+        if language != "en":
+            message_for_bot = translate_to_english(original_message)
+        else:
+            message_for_bot = original_message
+
+        print("Message for bot:", message_for_bot)
+
+        # 3) Run existing rule-based chatbot logic (unchanged behavior, but on English text)
+        rule = self._rule_based_response(company, message_for_bot)
         if rule:
-            text, intent, data = rule
+            english_text, intent, data = rule
+            # 4) Translate response back to original language if required
+            if language != "en":
+                final_text = translate_from_english(english_text, language)
+            else:
+                final_text = english_text
+
             return Response(
                 {
-                    "response": text,
+                    "response": final_text,
+                    "language": language,
                     "intent": intent,
                     "data": data,
                     "business_name": company.get("name"),
                 }
             )
 
+        # No rule matched – fall back to the existing default English response
+        english_fallback = (
+            "I don’t have information about that. Please contact the business directly for confirmation."
+        )
+        if language != "en":
+            final_fallback = translate_from_english(english_fallback, language)
+        else:
+            final_fallback = english_fallback
+
         return Response(
             {
-                "response": "I don’t have information about that. Please contact the business directly for confirmation.",
+                "response": final_fallback,
+                "language": language,
                 "intent": "unknown",
                 "data": None,
                 "business_name": company.get("name"),

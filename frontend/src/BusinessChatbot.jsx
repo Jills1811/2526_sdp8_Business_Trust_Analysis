@@ -312,8 +312,8 @@ export default function BusinessChatbot({ companyId, businessName }) {
                       </button>
                     )}
                   </div>
-                ) : msg.intent === "name" && msg.data ? (
-                  <div><strong>Company Name:</strong> {msg.data.name}</div>
+                ) : msg.intent === "name" ? (
+                  <span>{msg.text}</span>
                 ) : msg.intent === "description" && msg.data ? (
                   <div>{msg.data.description || msg.text}</div>
                 ) : (
