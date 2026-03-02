@@ -6,16 +6,29 @@ const BASE_URL = "http://localhost:8000";
 
 const pageStyle = {
   minHeight: "100vh",
-  background: "#f5f5f5",
+  background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   padding: "2rem",
 };
 
+const containerStyle = {
+  maxWidth: "1200px",
+  margin: "0 auto",
+};
+
 const cardStyle = {
   background: "#ffffff",
-  borderRadius: "0.75rem",
-  padding: "1rem",
-  boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+  borderRadius: "16px",
+  padding: "1.75rem",
+  boxShadow: "0 15px 35px rgba(15,23,42,0.08)",
+};
+
+const inputStyle = {
+  padding: "0.8rem",
+  borderRadius: "10px",
+  border: "2px solid #e5e7eb",
+  fontSize: "0.95rem",
+  transition: "all 0.3s ease",
 };
 
 export default function BusinessSearch() {
@@ -52,44 +65,133 @@ export default function BusinessSearch() {
   };
 
   useEffect(() => {
-    // initial load: top-rated overall
     search({});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div style={pageStyle}>
-      <div style={{ maxWidth: "960px", margin: "0 auto" }}>
+      <div style={containerStyle}>
         <div style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Search Businesses</h2>
-          <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem" }}>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name" style={{ padding: "0.6rem", border: "1px solid #d1d5db", borderRadius: "0.5rem" }} />
-            <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category" style={{ padding: "0.6rem", border: "1px solid #d1d5db", borderRadius: "0.5rem" }} />
-            <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" style={{ padding: "0.6rem", border: "1px solid #d1d5db", borderRadius: "0.5rem" }} />
-            <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" style={{ padding: "0.6rem", border: "1px solid #d1d5db", borderRadius: "0.5rem" }} />
-            <div>
-              <button type="submit" className="btn btn-primary">Search</button>
-            </div>
+          <h2 style={{ margin: 0, fontSize: "1.9rem", fontWeight: 800, color: "#111827" }}>
+            🔍 Smart Business Search
+          </h2>
+
+          <p style={{ color: "#4b5563", marginTop: "6px", maxWidth: "680px" }}>
+            Discover reliable businesses using AI-powered trust and reputation analysis.
+          </p>
+
+          <form
+            onSubmit={handleSubmit}
+            style={{
+              marginTop: "1.75rem",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: "0.75rem",
+            }}
+          >
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Business name" style={inputStyle} />
+            <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category" style={inputStyle} />
+            <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" style={inputStyle} />
+            <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" style={inputStyle} />
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{
+                width: "100%",
+                padding: "0.85rem",
+                fontWeight: 600,
+                borderRadius: "10px",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading ? "Searching..." : "Search"}
+            </button>
           </form>
 
-          <div style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.75rem" }}>
-            {loading && <p style={{ color: "#6b7280" }}>Searching...</p>}
-            {!loading && results.map((c) => (
-              <div key={c.id} style={{ ...cardStyle, boxShadow: "none", border: "1px solid #e5e7eb" }}>
-                <p style={{ margin: 0, color: "#6b7280", fontSize: "0.85rem" }}>{c.category}</p>
-                <h3 style={{ margin: "0.15rem 0 0.25rem" }}>{c.name}</h3>
-                {c.city && c.country && (
-                  <p style={{ margin: 0, color: "#4b5563" }}>📍 {c.city}, {c.country}</p>
-                )}
-                <div style={{ margin: "0.35rem 0 0", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                  <p style={{ margin: 0, color: "#1d4ed8", fontWeight: 600 }}>{(c.average_rating ?? 0).toFixed(1)} / 5.0</p>
-                  <p style={{ margin: 0, color: "#15803d", fontSize: "0.85rem", fontWeight: 500 }}>Reputation: {(c.reputation_score ?? 0).toFixed(1)} / 100</p>
+          <div
+            style={{
+              marginTop: "2.5rem",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: "1.5rem",
+            }}
+          >
+            {loading && (
+              <p style={{ gridColumn: "1/-1", textAlign: "center", color: "#6b7280" }}>
+                🔄 Finding best matches...
+              </p>
+            )}
+
+            {!loading &&
+              results.map((c, i) => (
+                <div
+                  key={c.id}
+                  style={{
+                    background: "#fff",
+                    borderRadius: "14px",
+                    padding: "1.3rem",
+                    border: "1px solid #e5e7eb",
+                    transition: "all 0.35s ease",
+                    boxShadow: "0 6px 18px rgba(15,23,42,0.06)",
+                    cursor: "pointer",
+                    animation: `fadeUp 0.4s ease ${i * 0.06}s both`,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-6px) scale(1.01)";
+                    e.currentTarget.style.boxShadow = "0 18px 35px rgba(15,23,42,0.14)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(15,23,42,0.06)";
+                  }}
+                >
+                  <p style={{ margin: 0, color: "#6366f1", fontWeight: 600, fontSize: "0.85rem" }}>
+                    {c.category}
+                  </p>
+
+                  <h3 style={{ margin: "6px 0 4px", fontSize: "1.2rem", color: "#111827" }}>
+                    {c.name}
+                  </h3>
+
+                  {c.city && c.country && (
+                    <p style={{ margin: 0, color: "#6b7280", fontSize: "0.9rem" }}>
+                      📍 {c.city}, {c.country}
+                    </p>
+                  )}
+
+                  <div style={{ marginTop: "12px", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#1d4ed8", fontWeight: 700 }}>
+                      ⭐ {(c.average_rating ?? 0).toFixed(1)}
+                    </span>
+                    <span style={{ color: "#15803d", fontWeight: 600 }}>
+                      🛡 {(c.reputation_score ?? 0).toFixed(1)}
+                    </span>
+                  </div>
+
+                  <Link to={`/companies/${c.id}`} style={{ textDecoration: "none" }}>
+                    <button
+                      className="btn btn-outline"
+                      style={{
+                        width: "100%",
+                        marginTop: "14px",
+                        fontWeight: 600,
+                        borderRadius: "10px",
+                      }}
+                    >
+                      View Details →
+                    </button>
+                  </Link>
                 </div>
-                <Link to={`/companies/${c.id}`}><button className="btn btn-outline" style={{ marginTop: "0.5rem" }}>View</button></Link>
-              </div>
-            ))}
+              ))}
+
             {!loading && results.length === 0 && (
-              <p style={{ color: "#6b7280" }}>No results found.</p>
+              <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "2.5rem" }}>
+                <p style={{ fontSize: "3rem" }}>😕</p>
+                <p style={{ color: "#6b7280", fontSize: "1.1rem" }}>
+                  No businesses found
+                </p>
+              </div>
             )}
           </div>
         </div>

@@ -3,8 +3,8 @@ import { getCompanyToken } from "./CompanyAuth";
 
 const BASE_URL = "http://localhost:8000";
 
-const pageStyle = { minHeight: "100vh", background: "#f5f5f5", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif", padding: "2rem" };
-const cardStyle = { background: "#ffffff", borderRadius: "0.75rem", padding: "1.25rem", boxShadow: "0 10px 30px rgba(15,23,42,0.08)" };
+const pageStyle = { minHeight: "100vh", background: "linear-gradient(135deg, #f0f4ff 0%, #e6f2ff 25%, #f0e6ff 75%, #ffffff 100%)", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif", padding: "2rem" };
+const cardStyle = { background: "#ffffff", borderRadius: "16px", padding: "2rem", boxShadow: "0 4px 6px rgba(79, 70, 229, 0.08), 0 2px 4px rgba(0, 0, 0, 0.05)", border: "1px solid rgba(79, 70, 229, 0.1)" };
 
 export default function CompanyProfile() {
   const [form, setForm] = useState({

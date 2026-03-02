@@ -553,248 +553,268 @@ export function CustomerHomePage() {
   }, []);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        padding: "2rem",
-        background: "#f5f5f5",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
-    >
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        <div
-          style={{
-            background: "#ffffff",
-            padding: "1.5rem",
-            borderRadius: "0.75rem",
-            boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
-            marginBottom: "2rem",
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-            Customer Home
-          </h2>
-          {customer ? (
-            <p style={{ margin: 0, color: "#6b7280" }}>
-              Welcome back,{" "}
-              <strong>
-                {customer.first_name || customer.last_name
-                  ? `${customer.first_name || ""} ${customer.last_name || ""}`.trim()
-                  : customer.email}
-              </strong>
-              !
-            </p>
-          ) : (
-            <p style={{ margin: 0, color: "#6b7280" }}>
-              Please log in to continue.
-            </p>
-          )}
-          <button
-            onClick={() => navigate("/customer/login")}
-            style={{
-              marginTop: "1rem",
-              padding: "0.5rem 1rem",
-              borderRadius: "0.5rem",
-              border: "1px solid #d1d5db",
-              background: "transparent",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-            }}
-          >
-            Switch account
-          </button>
-        </div>
+  <div
+    style={{
+      minHeight: "100vh",
+      padding: "2.5rem 1.5rem",
+      background: "radial-gradient(circle at top, #eef2ff, #f8fafc)",
+      fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    }}
+  >
+    <div style={{ maxWidth: "1250px", margin: "0 auto" }}>
 
-        <div
-          style={{
-            background: "#ffffff",
-            padding: "1.5rem",
-            borderRadius: "0.75rem",
-            boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
-            marginBottom: "2rem",
-          }}
-        >
-          <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-            Recommended for you
-          </h3>
-          <p style={{ margin: "0 0 1rem", color: "#4b5563", fontSize: "0.9rem" }}>
-            Personalized recommendations based on your recent views, search activity, location, and business reputation.
+      {/* Header Card */}
+      <div
+        style={{
+          background: "rgba(255,255,255,0.9)",
+          backdropFilter: "blur(12px)",
+          padding: "2rem",
+          borderRadius: "1rem",
+          boxShadow: "0 20px 45px rgba(15,23,42,0.12)",
+          marginBottom: "2.2rem",
+          border: "1px solid rgba(99,102,241,0.12)",
+        }}
+      >
+        <h2 style={{ marginTop: 0, marginBottom: "0.4rem", fontSize: "1.6rem", fontWeight: 800 }}>
+          Customer Home
+        </h2>
+
+        {customer ? (
+          <p style={{ margin: 0, color: "#475569", fontSize: "0.95rem" }}>
+            Welcome back,&nbsp;
+            <strong>
+              {customer.first_name || customer.last_name
+                ? `${customer.first_name || ""} ${customer.last_name || ""}`.trim()
+                : customer.email}
+            </strong>
+            !
           </p>
-          {recLoading ? (
-            <p style={{ color: "#6b7280" }}>Loading recommendations...</p>
-          ) : recommendations.length === 0 ? (
-            <p style={{ color: "#6b7280" }}>No recommendations yet. Search and view businesses to get personalized suggestions.</p>
-          ) : (
-            <>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                  gap: "0.75rem",
-                }}
-              >
-                {displayedRec.map((c) => (
-                  <div
-                    key={c.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "0.5rem",
-                      padding: "1rem",
-                      background: "#fff",
-                      boxShadow: "none",
-                    }}
-                  >
-                    <p style={{ margin: 0, color: "#6b7280", fontSize: "0.85rem" }}>{c.category}</p>
-                    <h4 style={{ margin: "0.15rem 0 0.25rem" }}>{c.name}</h4>
-                    {c.city && c.country && (
-                      <p style={{ margin: 0, color: "#4b5563", fontSize: "0.9rem" }}>📍 {c.city}, {c.country}</p>
-                    )}
-                    <p style={{ margin: "0.35rem 0 0", color: "#15803d", fontWeight: 600, fontSize: "0.9rem" }}>
-                      Reputation: {(c.reputation_score ?? 0).toFixed(1)} / 100
-                    </p>
-                    <p style={{ margin: 0, color: "#1d4ed8", fontSize: "0.9rem" }}>
-                      Rating: {(c.average_rating ?? 0).toFixed(1)} / 5.0
-                    </p>
-                    <Link to={`/companies/${c.id}`}>
-                      <button className="btn btn-outline" style={{ marginTop: "0.5rem" }}>View</button>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-              {hasMoreRec && (
-                <div style={{ textAlign: "center", marginTop: "1.25rem" }}>
-                  <button
-                    type="button"
-                    onClick={() => setRecExpanded((e) => !e)}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.6rem 1.25rem",
-                      border: "1px solid #d1d5db",
-                      borderRadius: "0.5rem",
-                      background: "#f9fafb",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                      color: "#374151",
-                    }}
-                  >
-                    {recExpanded ? (
-                      <>Show less <span style={{ fontSize: "0.75rem" }}>▲</span></>
-                    ) : (
-                      <>Show more ({recommendations.length - REC_INITIAL} more) <span style={{ fontSize: "0.75rem" }}>▼</span></>
-                    )}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        ) : (
+          <p style={{ margin: 0, color: "#64748b" }}>
+            Please log in to continue.
+          </p>
+        )}
 
-        <div
+        <button
+          onClick={() => navigate("/customer/login")}
           style={{
-            background: "#ffffff",
-            padding: "1.5rem",
-            borderRadius: "0.75rem",
-            boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+            marginTop: "1.1rem",
+            padding: "0.55rem 1.4rem",
+            borderRadius: "999px",
+            border: "1px solid #c7d2fe",
+            background: "linear-gradient(135deg,#eef2ff,#ffffff)",
+            cursor: "pointer",
+            fontWeight: 600,
+            color: "#4f46e5",
           }}
         >
-          <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>
-            Browse Companies
-          </h3>
+          Switch account
+        </button>
+      </div>
 
-          {loading ? (
-            <p style={{ color: "#6b7280" }}>Loading companies...</p>
-          ) : error ? (
-            <p style={{ color: "#b91c1c" }}>Error: {error}</p>
-          ) : companies.length === 0 ? (
-            <p style={{ color: "#6b7280" }}>
-              No companies found. Companies will appear here once they register.
-            </p>
-          ) : (
+      {/* Recommendations */}
+      <div
+        style={{
+          background: "rgba(255,255,255,0.9)",
+          backdropFilter: "blur(12px)",
+          padding: "2rem",
+          borderRadius: "1rem",
+          boxShadow: "0 20px 45px rgba(15,23,42,0.12)",
+          marginBottom: "2.2rem",
+          border: "1px solid rgba(99,102,241,0.12)",
+        }}
+      >
+        <h3 style={{ marginTop: 0, marginBottom: "0.4rem", fontSize: "1.35rem", fontWeight: 700 }}>
+          Recommended for you
+        </h3>
+
+        <p style={{ margin: "0 0 1.25rem", color: "#475569", fontSize: "0.9rem" }}>
+          Personalized recommendations based on your recent views, search activity, location, and business reputation.
+        </p>
+
+        {recLoading ? (
+          <p style={{ color: "#64748b" }}>Loading recommendations...</p>
+        ) : recommendations.length === 0 ? (
+          <p style={{ color: "#64748b" }}>No recommendations yet.</p>
+        ) : (
+          <>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
                 gap: "1rem",
               }}
             >
-              {companies.map((company) => (
+              {displayedRec.map((c) => (
                 <div
-                  key={company.id}
+                  key={c.id}
                   style={{
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "0.5rem",
-                    padding: "1rem",
-                    background: "#f8fafc",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "1rem",
+                    padding: "1.2rem",
+                    background: "linear-gradient(180deg,#ffffff,#f9fafb)",
+                    transition: "all 0.2s ease",
                     cursor: "pointer",
-                    transition: "transform 0.08s ease, box-shadow 0.08s ease, border-color 0.08s ease",
                   }}
-                  onClick={() => navigate(`/companies/${company.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/companies/${company.id}`);
-                    }
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-6px) scale(1.01)";
+                    e.currentTarget.style.boxShadow = "0 15px 30px rgba(15,23,42,0.15)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
-                  <h4 style={{ margin: "0 0 0.5rem", color: "#0b1224" }}>
-                    {company.name}
-                  </h4>
-                  <p
-                    style={{
-                      margin: "0 0 0.5rem",
-                      fontSize: "0.85rem",
-                      color: "#475569",
-                    }}
-                  >
-                    <strong>Category:</strong> {company.category}
+                  <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: 600, color: "#6366f1" }}>
+                    {c.category}
                   </p>
-                  {company.description && (
-                    <p
-                      style={{
-                        margin: "0 0 0.5rem",
-                        fontSize: "0.85rem",
-                        color: "#64748b",
-                      }}
-                    >
-                      {company.description.length > 100
-                        ? `${company.description.substring(0, 100)}...`
-                        : company.description}
+
+                  <h4 style={{ margin: "0.3rem 0 0.35rem", fontSize: "1.05rem", fontWeight: 700 }}>
+                    {c.name}
+                  </h4>
+
+                  {c.city && c.country && (
+                    <p style={{ margin: 0, fontSize: "0.85rem", color: "#475569" }}>
+                      📍 {c.city}, {c.country}
                     </p>
                   )}
-                  {company.average_rating > 0 && (
-                    <p
+
+                  <p style={{ margin: "0.45rem 0 0", fontSize: "0.85rem", fontWeight: 700, color: "#15803d" }}>
+                    Reputation: {(c.reputation_score ?? 0).toFixed(1)} / 100
+                  </p>
+
+                  <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "#2563eb" }}>
+                    Rating: {(c.average_rating ?? 0).toFixed(1)} / 5.0
+                  </p>
+
+                  <Link to={`/companies/${c.id}`}>
+                    <button
                       style={{
-                        margin: "0 0 0.5rem",
-                        fontSize: "0.85rem",
-                        color: "#475569",
+                        marginTop: "0.75rem",
+                        padding: "0.45rem 1.3rem",
+                        borderRadius: "999px",
+                        border: "1px solid #c7d2fe",
+                        background: "white",
+                        color: "#4f46e5",
+                        fontWeight: 600,
+                        cursor: "pointer",
                       }}
                     >
-                      <strong>Rating:</strong> ⭐ {company.average_rating.toFixed(1)} / 5.0
-                      {company.total_reviews > 0 && (
-                        <span> ({company.total_reviews} reviews)</span>
-                      )}
-                    </p>
-                  )}
-                  {company.city && company.country && (
-                    <p
-                      style={{
-                        margin: "0",
-                        fontSize: "0.85rem",
-                        color: "#64748b",
-                      }}
-                    >
-                      📍 {company.city}, {company.country}
-                    </p>
-                  )}
+                      View
+                    </button>
+                  </Link>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+
+            {hasMoreRec && (
+              <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setRecExpanded((e) => !e)}
+                  style={{
+                    padding: "0.6rem 1.6rem",
+                    borderRadius: "999px",
+                    border: "1px solid #c7d2fe",
+                    background: "linear-gradient(135deg,#eef2ff,#ffffff)",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    color: "#4f46e5",
+                  }}
+                >
+                  {recExpanded ? "Show Less ▲" : `Show More (${recommendations.length - REC_INITIAL}) ▼`}
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Browse Companies */}
+      <div
+        style={{
+          background: "rgba(255,255,255,0.9)",
+          backdropFilter: "blur(12px)",
+          padding: "2rem",
+          borderRadius: "1rem",
+          boxShadow: "0 20px 45px rgba(15,23,42,0.12)",
+          border: "1px solid rgba(99,102,241,0.12)",
+        }}
+      >
+        <h3 style={{ marginTop: 0, marginBottom: "1.25rem", fontSize: "1.35rem", fontWeight: 700 }}>
+          Browse Companies
+        </h3>
+
+        {loading ? (
+          <p style={{ color: "#64748b" }}>Loading companies...</p>
+        ) : error ? (
+          <p style={{ color: "#b91c1c" }}>Error: {error}</p>
+        ) : companies.length === 0 ? (
+          <p style={{ color: "#64748b" }}>No companies found.</p>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+              gap: "1.2rem",
+            }}
+          >
+            {companies.map((company) => (
+              <div
+                key={company.id}
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "1rem",
+                  padding: "1.25rem",
+                  background: "linear-gradient(180deg,#ffffff,#f8fafc)",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-6px) scale(1.01)";
+                  e.currentTarget.style.boxShadow = "0 16px 30px rgba(15,23,42,0.15)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+                onClick={() => navigate(`/companies/${company.id}`)}
+              >
+                <h4 style={{ margin: "0 0 0.6rem", fontSize: "1.05rem", fontWeight: 700 }}>
+                  {company.name}
+                </h4>
+
+                <p style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "#475569" }}>
+                  <strong>Category:</strong> {company.category}
+                </p>
+
+                {company.description && (
+                  <p style={{ margin: "0 0 0.6rem", fontSize: "0.85rem", color: "#64748b" }}>
+                    {company.description.length > 100
+                      ? `${company.description.substring(0, 100)}...`
+                      : company.description}
+                  </p>
+                )}
+
+                {company.average_rating > 0 && (
+                  <p style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "#1d4ed8", fontWeight: 600 }}>
+                    ⭐ {company.average_rating.toFixed(1)} / 5.0
+                  </p>
+                )}
+
+                {company.city && company.country && (
+                  <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b" }}>
+                    📍 {company.city}, {company.country}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
-  );
+  </div>
+);
 }
 

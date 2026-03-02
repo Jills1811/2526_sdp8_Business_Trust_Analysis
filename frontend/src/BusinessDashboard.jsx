@@ -4,23 +4,25 @@ import { getCompanyToken } from "./CompanyAuth";
 
 const pageStyle = {
   minHeight: "100vh",
-  background: "#f5f5f5",
-  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-  padding: "2rem",
+  background: "radial-gradient(circle at top, #eef2ff, #f8fafc)",
+  fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+  padding: "2.5rem 1.5rem",
 };
 
 const cardStyle = {
-  background: "#ffffff",
-  borderRadius: "0.75rem",
-  padding: "1.25rem",
-  boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+  background: "rgba(255,255,255,0.95)",
+  borderRadius: "1.1rem",
+  padding: "1.4rem",
+  boxShadow: "0 15px 40px rgba(15,23,42,0.12)",
+  border: "1px solid rgba(99,102,241,0.12)",
+  transition: "transform .2s ease, box-shadow .2s ease",
 };
 
 const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  gap: "1rem",
-  marginTop: "1rem",
+  gap: "1.25rem",
+  marginTop: "1.25rem",
 };
 
 export default function BusinessDashboard() {
@@ -31,16 +33,16 @@ export default function BusinessDashboard() {
     const token = getCompanyToken();
     const stored = localStorage.getItem("companyData");
     if (stored && !token) {
-      try { setCompany(JSON.parse(stored)); } catch { setCompany(null); }
+      try {
+        setCompany(JSON.parse(stored));
+      } catch {
+        setCompany(null);
+      }
       return;
     }
 
-    if (!token) {
-      // Not logged in as company; keep null
-      return;
-    }
+    if (!token) return;
 
-    // Fetch the latest company profile and feedback
     const run = async () => {
       try {
         const res = await fetch("http://localhost:8000/api/company/me/", {
@@ -52,7 +54,6 @@ export default function BusinessDashboard() {
           localStorage.setItem("companyData", JSON.stringify(data));
         }
 
-        // Fetch company feedback (ratings + comments) from backend
         try {
           const fbRes = await fetch(
             "http://localhost:8000/api/company/me/feedback/",
@@ -61,20 +62,13 @@ export default function BusinessDashboard() {
             }
           );
           const fbData = await fbRes.json();
-          if (fbRes.ok) {
-            setFeedbackData(fbData);
-          }
-        } catch {
-          // ignore feedback fetch errors
-        }
-      } catch {
-        // ignore
-      }
+          if (fbRes.ok) setFeedbackData(fbData);
+        } catch {}
+      } catch {}
     };
     run();
   }, []);
 
-  // Get reputation score from company data
   const trustScore = company?.reputation_score ?? 0;
   const recommendationScore = company?.recommendation_score ?? 0;
   const averageRating = company?.average_rating ?? 0;
@@ -99,11 +93,9 @@ export default function BusinessDashboard() {
     },
   ];
 
-  // Real review data from backend feedback endpoint
   const ratings = feedbackData?.feedback?.ratings ?? [];
   const comments = feedbackData?.feedback?.comments ?? [];
 
-  // Helper for last 30 days
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -113,34 +105,19 @@ export default function BusinessDashboard() {
     return !Number.isNaN(d.getTime()) && d >= thirtyDaysAgo;
   }).length;
 
-  const reviewSignals =
-    ratings.length === 0
-      ? [
-          {
-            title: "New reviews (30d)",
-            value: 0,
-            accent: "#2563eb",
-          },
-          {
-            title: "Avg rating",
-            value: averageRating.toFixed(1),
-            accent: "#10b981",
-          },
-        ]
-      : [
-          {
-            title: "New reviews (30d)",
-            value: reviewsLast30Days,
-            accent: "#2563eb",
-          },
-          {
-            title: "Avg rating",
-            value: averageRating.toFixed(1),
-            accent: "#10b981",
-          },
-        ];
+  const reviewSignals = [
+    {
+      title: "New reviews (30d)",
+      value: reviewsLast30Days,
+      accent: "#2563eb",
+    },
+    {
+      title: "Avg rating",
+      value: averageRating.toFixed(1),
+      accent: "#10b981",
+    },
+  ];
 
-  // Recommended actions based on real data
   const recommendedActions = (() => {
     const actions = [];
     if (totalReviews === 0) {
@@ -169,13 +146,6 @@ export default function BusinessDashboard() {
         priority: "Medium",
       });
     }
-    if (actions.length === 0) {
-      actions.push({
-        title: "Monitor new feedback",
-        detail: "Keep an eye on fresh reviews to maintain a strong reputation.",
-        priority: "Medium",
-      });
-    }
     return actions;
   })();
 
@@ -201,103 +171,113 @@ export default function BusinessDashboard() {
 
   return (
     <div style={pageStyle}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+      <div style={{ maxWidth: "1250px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.7rem" }}>
+        
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
           <div>
-            <p style={{ margin: 0, color: "#6b7280", fontSize: "0.9rem" }}>Dashboard</p>
-            <h1 style={{ margin: "0.1rem 0 0", color: "#111827" }}>{company?.name}</h1>
+            <p style={{ margin: 0, color: "#6b7280", fontSize: "0.85rem" }}>
+              Business Analytics Dashboard
+            </p>
+            <h1 style={{ margin: "0.2rem 0 0", fontWeight: 800, color: "#0f172a" }}>
+              {company?.name}
+            </h1>
           </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
             <Link to="/company/home">
-              <button className="btn btn-outline">Back to company home</button>
+              <button className="btn btn-outline">Back to home</button>
             </Link>
             <button className="btn btn-primary">Generate report</button>
           </div>
         </header>
 
         <div style={grid}>
-          <div style={{ ...cardStyle, borderLeft: "4px solid #2563eb" }}>
-            <p style={{ margin: 0, color: "#6b7280" }}>Trust score</p>
-            <h2 style={{ margin: "0.25rem 0 0.5rem" }}>{trustScore.toFixed(1)}/100</h2>
-            <p style={{ margin: 0, color: "#10b981", fontWeight: 600 }}>
-              Based on your reputation data
-            </p>
-          </div>
-
-          <div style={{ ...cardStyle, borderLeft: "4px solid #10b981" }}>
-            <p style={{ margin: 0, color: "#6b7280" }}>Reputation badges</p>
-            <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1rem", color: "#111827" }}>
-              {reputationBadges.map((badge) => (
-                <li key={badge.label} style={{ marginBottom: "0.35rem" }}>
-                  <strong>{badge.label}:</strong> {badge.detail}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div style={{ ...cardStyle, borderLeft: "4px solid #f59e0b" }}>
-            <p style={{ margin: 0, color: "#6b7280" }}>Review signals</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.5rem", marginTop: "0.5rem" }}>
-              {reviewSignals.map((signal) => (
-                <div key={signal.title} style={{ padding: "0.75rem", borderRadius: "0.6rem", background: "#f8fafc", border: `1px solid ${signal.accent}20` }}>
-                  <p style={{ margin: 0, color: "#6b7280", fontSize: "0.85rem" }}>{signal.title}</p>
-                  <p style={{ margin: "0.2rem 0 0", fontWeight: 700, color: signal.accent }}>{signal.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <StatCard title="Trust Score" value={`${trustScore.toFixed(1)} / 100`} accent="#2563eb" />
+          <StatCard title="Recommendation Score" value={`${recommendationScore.toFixed(1)} / 100`} accent="#10b981" />
+          <StatCard title="Average Rating" value={`${averageRating.toFixed(1)} / 5.0`} accent="#f59e0b" />
         </div>
 
         <div style={grid}>
-          <div style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>Recommended actions</h3>
-              <span style={{ color: "#6b7280", fontSize: "0.9rem" }}>Prioritize these</span>
+          <Card title="Reputation Badges">
+            <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "#0f172a" }}>
+              {reputationBadges.map((b) => (
+                <li key={b.label} style={{ marginBottom: "0.45rem" }}>
+                  <strong>{b.label}:</strong> {b.detail}
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <Card title="Review Signals">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "0.75rem" }}>
+              {reviewSignals.map((s) => (
+                <div key={s.title} style={{ padding: "0.9rem", borderRadius: "0.7rem", background: "#f8fafc", border: `1px solid ${s.accent}30` }}>
+                  <p style={{ margin: 0, color: "#64748b", fontSize: "0.8rem" }}>{s.title}</p>
+                  <p style={{ margin: "0.2rem 0 0", fontWeight: 800, color: s.accent }}>{s.value}</p>
+                </div>
+              ))}
             </div>
-            <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-              {recommendedActions.map((item) => (
-                <div key={item.title} style={{ padding: "0.75rem", borderRadius: "0.6rem", border: "1px solid #e5e7eb", background: "#f9fafb" }}>
-                  <p style={{ margin: "0 0 0.2rem", fontWeight: 600 }}>{item.title}</p>
-                  <p style={{ margin: 0, color: "#4b5563" }}>{item.detail}</p>
-                  <span style={{ marginTop: "0.35rem", display: "inline-block", background: "#fef3c7", color: "#92400e", borderRadius: "999px", padding: "0.15rem 0.6rem", fontSize: "0.8rem" }}>
-                    {item.priority} priority
+          </Card>
+        </div>
+
+        <div style={grid}>
+          <Card title="Recommended Actions">
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {recommendedActions.map((a) => (
+                <div key={a.title} style={{ padding: "0.85rem", borderRadius: "0.75rem", border: "1px solid #e5e7eb", background: "#f9fafb" }}>
+                  <p style={{ margin: 0, fontWeight: 700 }}>{a.title}</p>
+                  <p style={{ margin: "0.2rem 0 0", color: "#475569" }}>{a.detail}</p>
+                  <span style={{ display: "inline-block", marginTop: "0.4rem", background: "#fef3c7", color: "#92400e", borderRadius: "999px", padding: "0.2rem 0.7rem", fontSize: "0.75rem", fontWeight: 700 }}>
+                    {a.priority} priority
                   </span>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>Reputation feed</h3>
-              <button className="btn btn-outline" style={{ padding: "0.35rem 0.75rem" }}>Mark all read</button>
-            </div>
-            <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <Card title="Reputation Feed">
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
               {reputationFeed.map((item, idx) => (
-                <div key={idx} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", padding: "0.75rem", borderRadius: "0.65rem", background: "#f8fafc", border: "1px solid #e5e7eb" }}>
+                <div key={idx} style={{ display: "flex", justifyContent: "space-between", padding: "0.8rem", borderRadius: "0.75rem", background: "#f8fafc", border: "1px solid #e5e7eb" }}>
                   <div>
-                    <p style={{ margin: "0 0 0.25rem", fontWeight: 600 }}>{item.label}</p>
-                    <p style={{ margin: 0, color: "#4b5563" }}>{item.detail}</p>
+                    <p style={{ margin: "0 0 0.15rem", fontWeight: 700 }}>{item.label}</p>
+                    <p style={{ margin: 0, color: "#475569" }}>{item.detail}</p>
                   </div>
-                  <span style={{ color: "#6b7280", fontSize: "0.85rem", whiteSpace: "nowrap" }}>{item.when}</span>
+                  <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{item.when}</span>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div style={cardStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
             <div>
-              <h3 style={{ margin: 0 }}>Next step</h3>
-              <p style={{ margin: "0.2rem 0 0", color: "#4b5563" }}>Send a follow-up to recent reviewers to boost trust by 5-8 pts.</p>
+              <h3 style={{ margin: 0 }}>Next Best Action</h3>
+              <p style={{ margin: "0.2rem 0 0", color: "#475569" }}>
+                Send follow-ups to recent customers and improve trust by 5–8 points.
+              </p>
             </div>
             <button className="btn btn-primary">Send follow-up</button>
           </div>
-        </div>
+        </Card>
+
       </div>
     </div>
   );
 }
 
+/* ---------------- UI Components ---------------- */
 
+const StatCard = ({ title, value, accent }) => (
+  <div style={{ ...cardStyle, borderLeft: `5px solid ${accent}` }}>
+    <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>{title}</p>
+    <p style={{ margin: "0.3rem 0 0", fontSize: "1.6rem", fontWeight: 800, color: accent }}>{value}</p>
+  </div>
+);
+
+const Card = ({ title, children }) => (
+  <div style={cardStyle}>
+    {title && <h3 style={{ marginTop: 0, marginBottom: "0.75rem" }}>{title}</h3>}
+    {children}
+  </div>
+);

@@ -54,6 +54,7 @@ function NavBar({ isLoggedIn, isCompanyLoggedIn, isCustomerLoggedIn, onLogout })
               <Link to="/top">Top</Link>
               <Link to="/recommendations">Recommendations</Link>
               <Link to="/customer/profile">Profile</Link>
+              {/* <Link to="" onClick={handleLogout}>logout</Link> */}
             </>
           )}
           {isCompanyLoggedIn && (
@@ -61,8 +62,8 @@ function NavBar({ isLoggedIn, isCompanyLoggedIn, isCustomerLoggedIn, onLogout })
               <Link to="/dashboard">Dashboard</Link>
               <Link to="/company/profile">Profile</Link>
               <Link to="/company/feedback">Feedback/Review</Link>
-              <Link to="/company/recommendation">Recommendation</Link>
-              <Link to="/company/analytics">Analytics</Link>
+              {/* <Link to="/company/recommendation">Recommendation</Link>
+              <Link to="/company/analytics">Analytics</Link> */}
             </>
           )}
           {isLoggedIn && (

@@ -1,5 +1,17 @@
+/* ===== MODERN COLOR PALETTE ===== */
+:root {
+  --primary: #2563eb;
+  --primary-light: #dbeafe;
+  --secondary: #8b5cf6;
+  --accent: #f59e0b;
+  --success: #10b981;
+  --text: #374151;
+  --text-light: #6b7280;
+  --bg-light: #f9fafb;
+}
+
 .page {
-  background: radial-gradient(circle at 20% 20%, #f6f8ff, #f3f7ff 35%, #eef2ff 60%, #ffffff 100%);
+  background: radial-gradient(circle at 20% 20%, #f0f4ff, #f3f7ff 35%, #eef2ff 60%, #ffffff 100%);
   color: #0f172a;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
@@ -799,6 +811,196 @@
 
 .app-main__content > * {
   background: transparent !important;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes slideInCard {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===== INTERACTIVE ELEMENTS ===== */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea {
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1), 0 8px 16px rgba(37, 99, 235, 0.1) !important;
+  transform: scale(1.01);
+  background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%) !important;
+}
+
+/* ===== BUTTON ENHANCEMENTS ===== */
+.btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+  box-shadow: 0 10px 25px rgba(17, 24, 39, 0.2);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(17, 24, 39, 0.3);
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 5px 15px rgba(17, 24, 39, 0.2);
+}
+
+.btn-outline {
+  border: 2px solid #cbd5e1;
+  transition: all 0.3s ease;
+}
+
+.btn-outline:hover {
+  border-color: #1d4ed8;
+  background: rgba(29, 78, 216, 0.08);
+  color: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(29, 78, 216, 0.15);
+}
+
+.btn-outline:active {
+  transform: translateY(0);
+}
+
+/* ===== CARD ANIMATIONS ===== */
+.card-item {
+  animation: slideInCard 0.5s ease forwards;
+}
+
+.card-item:nth-child(1) { animation-delay: 0.05s; }
+.card-item:nth-child(2) { animation-delay: 0.1s; }
+.card-item:nth-child(3) { animation-delay: 0.15s; }
+.card-item:nth-child(4) { animation-delay: 0.2s; }
+.card-item:nth-child(5) { animation-delay: 0.25s; }
+.card-item:nth-child(n+6) { animation-delay: 0.3s; }
+
+/* ===== LOADING STATE ===== */
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+.loading-skeleton {
+  background: #f0f0f0;
+  border-radius: 8px;
+  min-height: 200px;
+  animation: pulse 2s infinite;
+}
+
+/* ===== HOVER EFFECTS ===== */
+.business-card {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.business-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.business-card:hover::after {
+  left: 100%;
+}
+
+/* ===== TRANSFORM EFFECTS ===== */
+.rating-badge {
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.business-card:hover .rating-badge {
+  transform: scale(1.1);
+  color: #1d4ed8;
 }
 
 @media (max-width: 960px) {
