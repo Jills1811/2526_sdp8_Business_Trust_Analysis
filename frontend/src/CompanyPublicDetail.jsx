@@ -15,7 +15,10 @@ export default function CompanyPublicDetail() {
   const [error, setError] = useState(null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [ratingInput, setRatingInput] = useState("");
+  const [postingRating, setPostingRating] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
+  const [ratingStatus, setRatingStatus] = useState(null);
   const [commentStatus, setCommentStatus] = useState(null);
 
   useEffect(() => {
@@ -47,6 +50,88 @@ export default function CompanyPublicDetail() {
     fetchComments();
   }, [companyId]);
 
+  useEffect(() => {
+    const token = getCustomerToken();
+    if (!token || !companyId) return;
+    const loadMyRating = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/company/${companyId}/rate/`, {
+          headers: { Authorization: `Token ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.my_rating != null && !Number.isNaN(Number(data.my_rating))) {
+          const v = Number(data.my_rating);
+          setRatingInput(Number.isInteger(v) ? String(v) : String(v));
+        }
+      } catch {}
+    };
+    loadMyRating();
+  }, [companyId]);
+
+  const parseRating = () => {
+    const ratingStr = ratingInput.trim();
+    if (ratingStr === "") {
+      return { error: "Enter a rating between 0 and 5 (e.g. 4.3)." };
+    }
+    const ratingNum = Number(ratingStr);
+    if (Number.isNaN(ratingNum) || ratingNum < 0 || ratingNum > 5) {
+      return { error: "Rating must be a number from 0 to 5." };
+    }
+    return { value: ratingNum };
+  };
+
+  const applyRateResponseToCompany = (rateData) => {
+    if (!rateData?.company) return;
+    setCompany((prev) =>
+      prev
+        ? {
+            ...prev,
+            average_rating: rateData.company.average_rating,
+            rating: rateData.company.average_rating,
+            total_reviews: rateData.company.total_reviews,
+            reputation_score: rateData.company.reputation_score,
+          }
+        : prev
+    );
+  };
+
+  const handleSubmitRating = async (e) => {
+    e.preventDefault();
+    setRatingStatus(null);
+    const token = getCustomerToken();
+    if (!token) {
+      return setRatingStatus({ type: "error", message: "Login required to submit a rating." });
+    }
+    const parsed = parseRating();
+    if (parsed.error) {
+      return setRatingStatus({ type: "error", message: parsed.error });
+    }
+
+    setPostingRating(true);
+    try {
+      const rateRes = await fetch(`${BASE_URL}/api/company/${companyId}/rate/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ rating: parsed.value }),
+      });
+      if (!rateRes.ok) {
+        const errBody = await rateRes.json().catch(() => ({}));
+        throw new Error(errBody.detail || "Failed to save your rating.");
+      }
+      const rateData = await rateRes.json();
+      applyRateResponseToCompany(rateData);
+      setRatingStatus({ type: "success", message: "Rating saved." });
+    } catch (err) {
+      setRatingStatus({ type: "error", message: err.message });
+    } finally {
+      setPostingRating(false);
+    }
+  };
+
   const handleSubmitComment = async (e) => {
     e.preventDefault();
     const token = getCustomerToken();
@@ -60,26 +145,24 @@ export default function CompanyPublicDetail() {
     setPostingComment(true);
 
     try {
-      const res = await fetch(
-        `${BASE_URL}/api/company/${companyId}/comments/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Token ${token}`,
-          },
-          body: JSON.stringify({ comment: newComment }),
-        }
-      );
+      const res = await fetch(`${BASE_URL}/api/company/${companyId}/comments/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ comment: newComment }),
+      });
 
-      if (!res.ok) throw new Error("Failed to post comment");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.detail || "Failed to post comment");
+      }
 
       setNewComment("");
       setCommentStatus({ type: "success", message: "Comment added successfully!" });
 
-      const listRes = await fetch(
-        `${BASE_URL}/api/company/${companyId}/comments/`
-      );
+      const listRes = await fetch(`${BASE_URL}/api/company/${companyId}/comments/`);
       const listData = await listRes.json();
       setComments(listData.comments || []);
     } catch (err) {
@@ -138,8 +221,44 @@ export default function CompanyPublicDetail() {
               <section className="company-section">
                 <h3>Customer Reviews</h3>
 
+                <form className="comment-box rating-form" onSubmit={handleSubmitRating}>
+                  <label className="rating-field-label" htmlFor="review-rating-input">
+                    Your rating (0–5, decimals allowed)
+                  </label>
+                  <div className="rating-submit-row">
+                    <input
+                      id="review-rating-input"
+                      className="rating-text-input"
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="e.g. 4.3, 1.2, 5"
+                      value={ratingInput}
+                      onChange={(e) => setRatingInput(e.target.value)}
+                      aria-describedby="review-rating-hint"
+                    />
+                    <button
+                      type="submit"
+                      className="btn-primary rating-submit-btn"
+                      disabled={postingRating}
+                    >
+                      {postingRating ? "Saving..." : "Submit rating"}
+                    </button>
+                  </div>
+                  <p id="review-rating-hint" className="rating-field-hint">
+                    Enter a number from 0 to 5.
+                  </p>
+                  {ratingStatus && (
+                    <p className={ratingStatus.type}>{ratingStatus.message}</p>
+                  )}
+                </form>
+
                 <form className="comment-box" onSubmit={handleSubmitComment}>
+                  <label className="rating-field-label" htmlFor="review-comment">
+                    Your comment
+                  </label>
                   <textarea
+                    id="review-comment"
                     placeholder="Write your experience about this business..."
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}

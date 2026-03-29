@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getCompanyToken } from "./CompanyAuth";
+import { downloadBusinessReportPdf } from "./utils/businessReportPdf";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -28,6 +29,7 @@ const grid = {
 export default function BusinessDashboard() {
   const [company, setCompany] = useState(null);
   const [feedbackData, setFeedbackData] = useState(null);
+  const [reportGenerating, setReportGenerating] = useState(false);
 
   useEffect(() => {
     const token = getCompanyToken();
@@ -69,6 +71,45 @@ export default function BusinessDashboard() {
     run();
   }, []);
 
+  const handleGenerateReport = async () => {
+    const token = getCompanyToken();
+    if (!token) {
+      window.alert("Please log in as a company to generate a report.");
+      return;
+    }
+    setReportGenerating(true);
+    try {
+      const [meRes, fbRes] = await Promise.all([
+        fetch("http://localhost:8000/api/company/me/", {
+          headers: { Authorization: `Token ${token}` },
+        }),
+        fetch("http://localhost:8000/api/company/me/feedback/", {
+          headers: { Authorization: `Token ${token}` },
+        }),
+      ]);
+      let co = company;
+      let fb = feedbackData;
+      if (meRes.ok) {
+        co = await meRes.json();
+        setCompany(co);
+        localStorage.setItem("companyData", JSON.stringify(co));
+      }
+      if (fbRes.ok) {
+        fb = await fbRes.json();
+        setFeedbackData(fb);
+      }
+      if (!co || !co.name) {
+        window.alert("Could not load business profile. Try again in a moment.");
+        return;
+      }
+      downloadBusinessReportPdf({ company: co, feedbackData: fb });
+    } catch (e) {
+      window.alert(e?.message || "Could not generate the PDF report.");
+    } finally {
+      setReportGenerating(false);
+    }
+  };
+
   const trustScore = company?.reputation_score ?? 0;
   const recommendationScore = company?.recommendation_score ?? 0;
   const averageRating = company?.average_rating ?? 0;
@@ -80,17 +121,17 @@ export default function BusinessDashboard() {
       label: "High Satisfaction",
       detail:
         totalReviews > 0
-          ? `${averageRating.toFixed(1)} / 5.0 from ${totalReviews} reviews`
+          ? `${averageRating.toFixed(1)} / 5.0 from ${totalReviews} ratings`
           : "No rating data yet",
     },
-    {
-      label: "Recommendation score",
-      detail: `${recommendationScore.toFixed(1)} / 100`,
-    },
-    {
-      label: "Verified Profile",
-      detail: isVerified ? "Business identity verified" : "Not verified yet",
-    },
+    // {
+    //   label: "Recommendation score",
+    //   detail: `${recommendationScore.toFixed(1)} / 100`,
+    // },
+    // {
+    //   label: "Verified Profile",
+    //   detail: isVerified ? "Business identity verified" : "Not verified yet",
+    // },
   ];
 
   const ratings = feedbackData?.feedback?.ratings ?? [];
@@ -107,15 +148,15 @@ export default function BusinessDashboard() {
 
   const reviewSignals = [
     {
-      title: "New reviews (30d)",
+      title: "New Ratings (30d)",
       value: reviewsLast30Days,
       accent: "#2563eb",
     },
-    {
-      title: "Avg rating",
-      value: averageRating.toFixed(1),
-      accent: "#10b981",
-    },
+    // {
+    //   title: "Avg rating",
+    //   value: averageRating.toFixed(1),
+    //   accent: "#10b981",
+    // },
   ];
 
   const recommendedActions = (() => {
@@ -162,10 +203,13 @@ export default function BusinessDashboard() {
         when = d.toLocaleDateString();
       }
     }
+    const authorName =
+      (item.customer_name && String(item.customer_name).trim()) || "Anonymous";
     return {
       label,
       detail: item.comment || "No comment text",
       when: when || "Recently",
+      authorName,
     };
   });
 
@@ -173,26 +217,53 @@ export default function BusinessDashboard() {
     <div style={pageStyle}>
       <div style={{ maxWidth: "1250px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.7rem" }}>
         
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-          <div>
-            <p style={{ margin: 0, color: "#6b7280", fontSize: "0.85rem" }}>
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", width: "100%" }}>
+          <div
+            style={{
+              ...cardStyle,
+              borderLeft: "5px solid #2563eb",
+              flex: "1 1 auto",
+              width: "100%",
+              minWidth: "min(100%, 520px)",
+              maxWidth: "720px",
+              padding: "1.5rem 2.25rem",
+              boxSizing: "border-box",
+            }}
+          >
+            <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem", fontWeight: 600 }}>
               Business Analytics Dashboard
             </p>
-            <h1 style={{ margin: "0.2rem 0 0", fontWeight: 800, color: "#0f172a" }}>
-              {company?.name}
+            <h1
+              style={{
+                margin: "0.45rem 0 0",
+                fontSize: "clamp(1.55rem, 3vw, 2.05rem)",
+                fontWeight: 800,
+                color: "#1d4ed8",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.2,
+              }}
+            >
+              {company?.name ?? "Loading…"}
             </h1>
           </div>
           <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
             <Link to="/company/home">
               <button className="btn btn-outline">Back to home</button>
             </Link>
-            <button className="btn btn-primary">Generate report</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={reportGenerating}
+              onClick={handleGenerateReport}
+            >
+              {reportGenerating ? "Generating…" : "Generate report"}
+            </button>
           </div>
         </header>
 
         <div style={grid}>
           <StatCard title="Trust Score" value={`${trustScore.toFixed(1)} / 100`} accent="#2563eb" />
-          <StatCard title="Recommendation Score" value={`${recommendationScore.toFixed(1)} / 100`} accent="#10b981" />
+          {/* <StatCard title="Recommendation Score" value={`${recommendationScore.toFixed(1)} / 100`} accent="#10b981" /> */}
           <StatCard title="Average Rating" value={`${averageRating.toFixed(1)} / 5.0`} accent="#f59e0b" />
         </div>
 
@@ -207,7 +278,7 @@ export default function BusinessDashboard() {
             </ul>
           </Card>
 
-          <Card title="Review Signals">
+          <Card title="Rating Signals">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "0.75rem" }}>
               {reviewSignals.map((s) => (
                 <div key={s.title} style={{ padding: "0.9rem", borderRadius: "0.7rem", background: "#f8fafc", border: `1px solid ${s.accent}30` }}>
@@ -220,7 +291,7 @@ export default function BusinessDashboard() {
         </div>
 
         <div style={grid}>
-          <Card title="Recommended Actions">
+          {/* <Card title="Recommended Actions">
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {recommendedActions.map((a) => (
                 <div key={a.title} style={{ padding: "0.85rem", borderRadius: "0.75rem", border: "1px solid #e5e7eb", background: "#f9fafb" }}>
@@ -232,24 +303,32 @@ export default function BusinessDashboard() {
                 </div>
               ))}
             </div>
-          </Card>
+          </Card> */}
 
-          <Card title="Reputation Feed">
+          <Card title="Feedback">
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              {reputationFeed.length === 0 && (
+                <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
+                  No customer comments yet.
+                </p>
+              )}
               {reputationFeed.map((item, idx) => (
-                <div key={idx} style={{ display: "flex", justifyContent: "space-between", padding: "0.8rem", borderRadius: "0.75rem", background: "#f8fafc", border: "1px solid #e5e7eb" }}>
-                  <div>
+                <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", padding: "0.8rem", borderRadius: "0.75rem", background: "#f8fafc", border: "1px solid #e5e7eb" }}>
+                  <div style={{ minWidth: 0 }}>
                     <p style={{ margin: "0 0 0.15rem", fontWeight: 700 }}>{item.label}</p>
+                    <p style={{ margin: "0 0 0.35rem", fontSize: "0.85rem", fontWeight: 600, color: "#4f46e5" }}>
+                      {item.authorName}
+                    </p>
                     <p style={{ margin: 0, color: "#475569" }}>{item.detail}</p>
                   </div>
-                  <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{item.when}</span>
+                  <span style={{ fontSize: "0.8rem", color: "#64748b", flexShrink: 0 }}>{item.when}</span>
                 </div>
               ))}
             </div>
           </Card>
         </div>
 
-        <Card>
+        {/* <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
             <div>
               <h3 style={{ margin: 0 }}>Next Best Action</h3>
@@ -259,7 +338,7 @@ export default function BusinessDashboard() {
             </div>
             <button className="btn btn-primary">Send follow-up</button>
           </div>
-        </Card>
+        </Card> */}
 
       </div>
     </div>

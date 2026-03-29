@@ -845,13 +845,13 @@ class CompanyRatingView(APIView):
             rating_value = float(rating_value)
         except (TypeError, ValueError):
             return Response(
-                {"detail": "Rating must be a number between 1.0 and 5.0."},
+                {"detail": "Rating must be a number between 0.0 and 5.0."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        if rating_value < 1.0 or rating_value > 5.0:
+        if rating_value < 0.0 or rating_value > 5.0:
             return Response(
-                {"detail": "Rating must be between 1.0 and 5.0."},
+                {"detail": "Rating must be between 0.0 and 5.0."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
@@ -1644,6 +1644,28 @@ class CompanyFeedbackView(APIView):
             return 0.0
         return (pos - neg) / (pos + neg)
 
+    def _customer_display_name(self, doc: dict) -> str:
+        """Prefer stored customer_name; otherwise resolve from users collection."""
+        stored = (doc.get("customer_name") or "").strip()
+        if stored:
+            return stored
+        uid = doc.get("user_id")
+        if uid is None:
+            return "Anonymous"
+        try:
+            user = get_user_by_id(str(uid))
+        except Exception:
+            user = None
+        if not user:
+            return "Anonymous"
+        fn = (user.get("first_name") or "").strip()
+        ln = (user.get("last_name") or "").strip()
+        full = f"{fn} {ln}".strip()
+        if full:
+            return full
+        em = (user.get("email") or "").strip()
+        return em if em else "Anonymous"
+
     def get(self, request, *args, **kwargs):
         company = self._get_company(request)
         if not company:
@@ -1680,6 +1702,8 @@ class CompanyFeedbackView(APIView):
             "comments": [
                 {
                     "user_id": str(doc.get("user_id")),
+                    "customer_name": self._customer_display_name(doc),
+                    "customer_email": (doc.get("customer_email") or "").strip(),
                     "comment": doc.get("comment", ""),
                     "created_at": doc.get("created_at"),
                     "sentiment": self._sentiment_score(doc.get("comment", "")),

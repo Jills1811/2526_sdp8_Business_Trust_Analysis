@@ -146,6 +146,17 @@ export default function CompanyFeedback() {
                           boxShadow: "0 6px 16px rgba(15,23,42,0.06)",
                         }}
                       >
+                        <p
+                          style={{
+                            margin: "0 0 0.35rem",
+                            fontSize: "0.82rem",
+                            fontWeight: 700,
+                            color: "#4f46e5",
+                          }}
+                        >
+                          {(c.customer_name && String(c.customer_name).trim()) ||
+                            "Anonymous"}
+                        </p>
                         <p style={{ margin: 0, fontSize: "0.95rem" }}>
                           {c.comment}
                         </p>

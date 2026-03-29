@@ -73,12 +73,12 @@ export default function BusinessSearch() {
       <div style={containerStyle}>
         <div style={cardStyle}>
           <h2 style={{ margin: 0, fontSize: "1.9rem", fontWeight: 800, color: "#111827" }}>
-            🔍 Smart Business Search
+            🔍 Business Search
           </h2>
 
-          <p style={{ color: "#4b5563", marginTop: "6px", maxWidth: "680px" }}>
+          {/* <p style={{ color: "#4b5563", marginTop: "6px", maxWidth: "680px" }}>
             Discover reliable businesses using AI-powered trust and reputation analysis.
-          </p>
+          </p> */}
 
           <form
             onSubmit={handleSubmit}

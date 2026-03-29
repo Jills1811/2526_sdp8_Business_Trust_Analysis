@@ -76,9 +76,9 @@ export default function Recommendations() {
             🎯 Smart Recommendations
           </h2>
 
-          <p style={{ color: "#4b5563", marginTop: "6px", maxWidth: "700px" }}>
+          {/* <p style={{ color: "#4b5563", marginTop: "6px", maxWidth: "700px" }}>
             AI-powered business recommendations based on browsing, search behavior, location, and business reputation.
-          </p>
+          </p> */}
 
           <form
             onSubmit={handleSubmit}

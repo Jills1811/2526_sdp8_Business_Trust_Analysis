@@ -145,6 +145,57 @@
   box-shadow: 0 16px 35px rgba(15, 23, 42, 0.16);
 }
 
+/* ===== RATING TEXT INPUT (reviews) ===== */
+
+.rating-field-label {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.45rem;
+}
+
+.rating-form {
+  margin-bottom: 1.5rem;
+}
+
+.rating-submit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rating-text-input {
+  flex: 1;
+  min-width: 140px;
+  max-width: 260px;
+  border-radius: 16px;
+  padding: 0.65rem 1rem;
+  border: 1px solid #e5e7eb;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.9);
+  transition: 0.25s ease;
+  margin-bottom: 0;
+}
+
+.rating-submit-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.rating-text-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.rating-field-hint {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
 /* ===== COMMENT ===== */
 
 .comment-box textarea {
